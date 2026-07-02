@@ -1,0 +1,468 @@
+/* =================================================================
+   style.css — Identité visuelle "GesCom2.0"
+   Palette : encre profonde + accent ambre (caisse), fond papier kraft
+   Typo : system-ui pour l'UI (fiabilité 100% offline), monospace
+          pour tous les chiffres (montants, quantités, codes)
+   ================================================================= */
+
+:root {
+  --encre: #16213a;
+  --encre-clair: #253356;
+  --papier: #f8f5ee;
+  --papier-carte: #ffffff;
+  --ambre: #e8952f;
+  --ambre-fonce: #c8791a;
+  --vert: #2f8f5b;
+  --rouge: #c0392b;
+  --gris-texte: #5b6270;
+  --gris-ligne: #e4dfd3;
+  --rayon: 10px;
+  --ombre: 0 2px 10px rgba(22, 33, 58, 0.08);
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-num: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--papier);
+  color: var(--encre);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background-image: radial-gradient(rgba(22, 33, 58, 0.025) 1px, transparent 1px);
+  background-size: 14px 14px;
+}
+
+button { font-family: inherit; }
+
+/* ---------- En-tête ---------- */
+.app-header {
+  background: var(--encre);
+  color: #fff;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  box-shadow: var(--ombre);
+}
+
+.app-header .marque { display: flex; align-items: baseline; gap: 8px; }
+.app-header .marque .logo { font-weight: 800; font-size: 1.15rem; letter-spacing: -0.02em; }
+.app-header .marque .logo span { color: var(--ambre); }
+.app-header .sous-titre { font-size: 0.72rem; color: #aab2c8; text-transform: uppercase; letter-spacing: 0.08em; }
+
+.statut-reseau { display: flex; align-items: center; gap: 10px; font-size: 0.78rem; }
+
+.pastille {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--vert);
+  box-shadow: 0 0 0 3px rgba(47, 143, 91, 0.25);
+}
+
+.pastille.hors-ligne { background: var(--rouge); box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.25); }
+
+.badge-attente {
+  background: var(--ambre);
+  color: var(--encre);
+  font-family: var(--font-num);
+  font-weight: 700;
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+/* ---------- Navigation par onglets ---------- */
+.app-nav {
+  display: flex;
+  gap: 4px;
+  background: var(--encre-clair);
+  padding: 0 16px;
+  overflow-x: auto;
+  position: sticky;
+  top: 53px;
+  z-index: 19;
+}
+
+.app-nav button {
+  background: none;
+  border: none;
+  color: #c3c9dc;
+  padding: 12px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.app-nav button:hover { color: #fff; }
+.app-nav button.actif { color: #fff; border-bottom-color: var(--ambre); }
+
+/* ---------- Contenu principal ---------- */
+main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
+
+.vue { display: none; }
+.vue.actif { display: block; animation: apparition 0.18s ease; }
+
+@keyframes apparition {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+h1.titre-vue { font-size: 1.3rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+.souscription-vue { color: var(--gris-texte); font-size: 0.85rem; margin: 0 0 18px; }
+
+/* ---------- Cartes / panneaux ---------- */
+.carte {
+  background: var(--papier-carte);
+  border-radius: var(--rayon);
+  box-shadow: var(--ombre);
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.grille-kpi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.kpi {
+  background: var(--encre);
+  color: #fff;
+  border-radius: var(--rayon);
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi::after {
+  content: "";
+  position: absolute;
+  right: -10px; top: -10px;
+  width: 60px; height: 60px;
+  background: rgba(232, 149, 47, 0.15);
+  border-radius: 50%;
+}
+
+.kpi .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: #aab2c8; margin-bottom: 6px; }
+.kpi .valeur { font-family: var(--font-num); font-size: 1.5rem; font-weight: 700; }
+.kpi.accent .valeur { color: var(--ambre); }
+
+/* ---------- Formulaires ---------- */
+label { display: block; font-size: 0.78rem; font-weight: 600; color: var(--gris-texte); margin: 10px 0 4px; }
+
+input, select {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--gris-ligne);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: #fff;
+  color: var(--encre);
+}
+
+input:focus, select:focus, button:focus-visible { outline: 2px solid var(--ambre); outline-offset: 1px; }
+input[type="number"] { font-family: var(--font-num); }
+
+.ligne-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* ---------- Boutons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  border-radius: 7px;
+  padding: 10px 16px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.08s ease, opacity 0.15s ease;
+}
+
+.btn:active { transform: scale(0.97); }
+.btn-principal { background: var(--ambre); color: var(--encre); }
+.btn-principal:hover { background: var(--ambre-fonce); }
+.btn-discret { background: var(--gris-ligne); color: var(--encre); }
+.btn-discret:hover { background: #d7d1c0; }
+.btn-danger { background: var(--rouge); color: #fff; }
+.btn-pleine-largeur { width: 100%; margin-top: 12px; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ---------- Tableaux ---------- */
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+
+th {
+  text-align: left;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gris-texte);
+  padding: 8px 10px;
+  border-bottom: 2px solid var(--gris-ligne);
+}
+
+td { padding: 9px 10px; border-bottom: 1px solid var(--gris-ligne); vertical-align: middle; }
+td.num, th.num { font-family: var(--font-num); text-align: right; }
+tr.alerte-stock td { background: rgba(192, 57, 43, 0.06); }
+
+.tag {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: var(--gris-ligne);
+  color: var(--encre);
+}
+
+.tag.pending { background: rgba(232, 149, 47, 0.2); color: var(--ambre-fonce); }
+.tag.synced { background: rgba(47, 143, 91, 0.15); color: var(--vert); }
+
+/* ---------- POS / Caisse ---------- */
+.pos-layout { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+
+@media (max-width: 760px) {
+  .pos-layout { grid-template-columns: 1fr; }
+  .ligne-form { grid-template-columns: 1fr; }
+}
+
+.recherche-produit input { font-size: 1rem; padding: 12px; }
+.liste-catalogue { max-height: 420px; overflow-y: auto; margin-top: 12px; }
+
+.item-catalogue {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 6px;
+  border-bottom: 1px solid var(--gris-ligne);
+  cursor: pointer;
+}
+
+.item-catalogue:hover { background: #fbf3e6; }
+.item-catalogue .nom { font-weight: 600; font-size: 0.88rem; }
+.item-catalogue .meta { font-size: 0.72rem; color: var(--gris-texte); }
+.item-catalogue .prix { font-family: var(--font-num); font-weight: 700; color: var(--ambre-fonce); }
+
+/* ---- Le "ticket" : signature visuelle de l'app ---- */
+.ticket { background: var(--papier-carte); border-radius: var(--rayon); box-shadow: var(--ombre); position: sticky; top: 100px; }
+.ticket-corps { padding: 18px 18px 6px; }
+
+.ticket-entete {
+  text-align: center;
+  border-bottom: 1px dashed var(--gris-ligne);
+  padding-bottom: 12px;
+  margin-bottom: 10px;
+}
+
+.ticket-entete .nom-boutique { font-weight: 800; letter-spacing: 0.04em; }
+.ticket-entete .date-ticket { font-size: 0.7rem; color: var(--gris-texte); font-family: var(--font-num); }
+
+.ligne-ticket { display: flex; justify-content: space-between; font-size: 0.82rem; padding: 5px 0; }
+.ligne-ticket .designation { flex: 1; }
+.ligne-ticket .qte { font-family: var(--font-num); color: var(--gris-texte); margin: 0 8px; }
+.ligne-ticket .montant { font-family: var(--font-num); font-weight: 700; }
+.ligne-ticket .retirer { background: none; border: none; color: var(--rouge); cursor: pointer; font-size: 0.9rem; padding: 0 4px; }
+
+.ticket-total {
+  border-top: 1px dashed var(--gris-ligne);
+  margin-top: 8px;
+  padding: 12px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.ticket-total .label { font-weight: 700; }
+.ticket-total .montant { font-family: var(--font-num); font-size: 1.5rem; font-weight: 800; color: var(--encre); }
+
+/* ---------- Écrans plein écran (onboarding / connexion) ---------- */
+.ecran-plein {
+  display: none;
+  position: fixed; inset: 0;
+  background: var(--encre);
+  background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 14px 14px;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 20px;
+}
+
+.ecran-plein.ouvert { display: flex; }
+
+.carte-ecran-plein {
+  background: var(--papier-carte);
+  border-radius: var(--rayon);
+  padding: 28px 24px;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+  text-align: center;
+}
+
+.carte-ecran-plein label,
+.carte-ecran-plein input,
+.carte-ecran-plein select { text-align: left; }
+
+.pin-affichage {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.pin-affichage span {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--gris-ligne);
+  display: inline-block;
+}
+
+.pin-affichage span.rempli { background: var(--ambre); border-color: var(--ambre); }
+
+.pin-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  max-width: 260px;
+  margin: 0 auto;
+}
+
+.pin-pad button {
+  padding: 16px 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  font-family: var(--font-num);
+  border: 1px solid var(--gris-ligne);
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  color: var(--encre);
+}
+
+.pin-pad button:active { background: var(--papier); }
+.pin-pad button.discret { font-size: 1rem; color: var(--gris-texte); }
+
+/* ---------- Éléments d'en-tête ---------- */
+.separateur-header { color: #4a5478; }
+.btn-mini { padding: 4px 10px; font-size: 0.72rem; }
+
+
+.ticket-dents {
+  height: 14px;
+  background: radial-gradient(circle at 8px 0, transparent 7px, var(--papier-carte) 7px) repeat-x;
+  background-size: 16px 14px;
+  margin: 0 -1px;
+}
+
+.paiement-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px 18px 4px; }
+
+.paiement-options button {
+  border: 2px solid var(--gris-ligne);
+  background: #fff;
+  border-radius: 7px;
+  padding: 10px 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--gris-texte);
+}
+
+.paiement-options button.selectionne { border-color: var(--ambre); background: rgba(232, 149, 47, 0.1); color: var(--ambre-fonce); }
+.encaisser-zone { padding: 6px 18px 18px; }
+
+/* ---------- Modale ---------- */
+.fond-modale {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(22, 33, 58, 0.55);
+  align-items: center; justify-content: center;
+  z-index: 50;
+  padding: 16px;
+}
+
+.fond-modale.ouverte { display: flex; }
+
+.modale {
+  background: #fff;
+  border-radius: var(--rayon);
+  padding: 20px;
+  max-width: 420px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modale h2 { margin-top: 0; font-size: 1.1rem; }
+.modale-actions { display: flex; gap: 8px; margin-top: 16px; }
+
+/* ---------- Barre d'action ---------- */
+.barre-outils {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.info-vide { text-align: center; color: var(--gris-texte); font-size: 0.85rem; padding: 30px 10px; }
+
+/* ---------- Toast ---------- */
+#toast {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--encre);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  box-shadow: var(--ombre);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.25s ease;
+  z-index: 100;
+  max-width: 90vw;
+}
+
+#toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+#toast.erreur { background: var(--rouge); }
+#toast.succes { background: var(--vert); }
+
+/* ---------- Impression du ticket (facturation) ---------- */
+.zone-impression { display: none; }
+
+@media print {
+  body * { visibility: hidden; }
+  .zone-impression, .zone-impression * { visibility: visible; }
+  .zone-impression {
+    display: block;
+    position: absolute;
+    top: 0; left: 0;
+    width: 78mm;
+    font-family: var(--font-num);
+    font-size: 12px;
+    color: #000;
+  }
+  .ticket-imp .entete-imp { text-align: center; margin-bottom: 6px; }
+  .ticket-imp hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }
+  .ticket-imp .ligne-imp { display: flex; justify-content: space-between; padding: 2px 0; }
+  .ticket-imp .total-imp { font-weight: bold; font-size: 14px; }
+  .ticket-imp .pied-imp { text-align: center; margin-top: 10px; font-style: italic; }
+}

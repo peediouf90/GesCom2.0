@@ -1,0 +1,9 @@
+{
+  "name": "gescom2-0",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GesCom2.0 — PWA de caisse hors-ligne + API de synchronisation (Vercel + Supabase).",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}

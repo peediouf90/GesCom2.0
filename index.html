@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#16213a" />
+<title>GesCom2.0 — Caisse &amp; Stock Hors-Ligne</title>
+<meta name="description" content="Application de caisse, stock et facturation 100% hors-ligne pour commerçants de détail." />
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+<link rel="stylesheet" href="css/style.css" />
+
+<!-- Dexie.js : wrapper IndexedDB robuste (mis en cache par le service worker) -->
+<script src="https://unpkg.com/dexie@3/dist/dexie.js"></script>
+</head>
+<body>
+
+<!-- ===================== ÉCRAN 1 : CONFIGURATION DE LA BOUTIQUE (1ère utilisation) ===================== -->
+<div id="ecranOnboarding" class="ecran-plein">
+  <div class="carte-ecran-plein">
+    <h1 class="titre-vue">Bienvenue 👋</h1>
+    <p class="souscription-vue">Configurons votre boutique avant de commencer. Ces informations restent sur cet appareil.</p>
+    <label for="onbNomBoutique">Nom de la boutique</label>
+    <input type="text" id="onbNomBoutique" placeholder="Ex: Boutique Awa — Marché Sandaga" />
+    <label for="onbCode">Code d'accès de la caisse (4 chiffres)</label>
+    <input type="password" id="onbCode" inputmode="numeric" maxlength="4" placeholder="••••" />
+    <p class="souscription-vue" style="margin-top:4px; font-size:0.75rem;">Ce code sera demandé à chaque ouverture. Partagez-le avec toute l'équipe qui utilise cette caisse.</p>
+    <button id="btnValiderOnboarding" class="btn btn-principal btn-pleine-largeur">Démarrer</button>
+  </div>
+</div>
+
+<!-- ===================== ÉCRAN 2 : CODE D'ACCÈS (partagé par toute l'équipe) ===================== -->
+<div id="ecranDeverrouillage" class="ecran-plein">
+  <div class="carte-ecran-plein">
+    <h1 class="titre-vue" id="titreBoutiqueDeverrouillage">GesCom2.0</h1>
+    <p class="souscription-vue">Entrez le code d'accès de la caisse.</p>
+    <div id="pinAffichage" class="pin-affichage">
+      <span></span><span></span><span></span><span></span>
+    </div>
+    <div class="pin-pad" id="pinPad">
+      <button data-chiffre="1">1</button><button data-chiffre="2">2</button><button data-chiffre="3">3</button>
+      <button data-chiffre="4">4</button><button data-chiffre="5">5</button><button data-chiffre="6">6</button>
+      <button data-chiffre="7">7</button><button data-chiffre="8">8</button><button data-chiffre="9">9</button>
+      <span></span><button data-chiffre="0">0</button><button id="btnEffacerPin" class="discret">⌫</button>
+    </div>
+  </div>
+</div>
+
+<header class="app-header">
+  <div class="marque">
+    <span class="logo">GesCom<span>2.0</span></span>
+    <span class="sous-titre" id="nomBoutiqueHeader">Caisse hors-ligne</span>
+  </div>
+  <div class="statut-reseau">
+    <span id="badgeAttente" class="badge-attente" style="display:none;">0 en attente</span>
+    <span id="pastilleReseau" class="pastille" title="En ligne"></span>
+    <span id="texteReseau">En ligne</span>
+    <span class="separateur-header">|</span>
+    <button id="btnVerrouiller" class="btn btn-discret btn-mini">🔒 Verrouiller</button>
+  </div>
+</header>
+
+<!-- ===================== NAVIGATION ===================== -->
+<nav class="app-nav">
+  <button data-vue="caisse" class="actif">🧾 Caisse</button>
+  <button data-vue="produits">📦 Produits</button>
+  <button data-vue="stock">🔁 Mouvements de stock</button>
+  <button data-vue="kpi">📊 Performance</button>
+  <button data-vue="parametres">⚙️ Paramètres</button>
+</nav>
+
+
+<main>
+
+  <!-- ===================== VUE CAISSE (POS) ===================== -->
+  <section id="vue-caisse" class="vue actif">
+    <h1 class="titre-vue">Caisse</h1>
+    <p class="souscription-vue">Recherchez un article, ajoutez-le au ticket, puis encaissez.</p>
+
+    <div class="pos-layout">
+      <!-- Colonne catalogue -->
+      <div class="carte recherche-produit">
+        <input type="text" id="rechercheCaisse" placeholder="🔍 Rechercher par nom ou code-barre…" autocomplete="off" />
+        <div id="listeCatalogueCaisse" class="liste-catalogue"></div>
+      </div>
+
+      <!-- Colonne ticket -->
+      <div class="ticket">
+        <div class="ticket-corps">
+          <div class="ticket-entete">
+            <div class="nom-boutique">TICKET DE CAISSE</div>
+            <div class="date-ticket" id="dateTicket">—</div>
+          </div>
+          <div id="lignesTicket">
+            <p class="info-vide">Le ticket est vide. Ajoutez un article ci-contre.</p>
+          </div>
+        </div>
+        <div class="ticket-total">
+          <span class="label">Total</span>
+          <span class="montant" id="totalTicket">0</span>
+        </div>
+        <div class="paiement-options" id="paiementOptions">
+          <button data-mode="Espèces" class="selectionne">💵 Espèces</button>
+          <button data-mode="Wave">🌊 Wave</button>
+          <button data-mode="Orange Money">🟠 Orange Money</button>
+          <button data-mode="Carte">💳 Carte</button>
+        </div>
+        <div class="encaisser-zone">
+          <button id="btnEncaisser" class="btn btn-principal btn-pleine-largeur">Encaisser la vente</button>
+          <button id="btnImprimerDernier" class="btn btn-discret btn-pleine-largeur" style="margin-top:8px; display:none;">🖨️ Imprimer le dernier ticket</button>
+        </div>
+        <div class="ticket-dents"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== VUE PRODUITS ===================== -->
+  <section id="vue-produits" class="vue">
+    <h1 class="titre-vue">Catalogue produits</h1>
+    <p class="souscription-vue">Gérez vos articles : prix, stock et seuils d'alerte.</p>
+
+    <div class="barre-outils">
+      <input type="text" id="rechercheProduits" placeholder="🔍 Rechercher un produit…" style="max-width:260px;" />
+      <div style="display:flex; gap:8px;">
+        <button id="btnChargerDemo" class="btn btn-discret">✨ Charger des données de démo</button>
+        <button id="btnNouveauProduit" class="btn btn-principal">+ Nouveau produit</button>
+      </div>
+    </div>
+
+    <div class="carte" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Produit</th>
+            <th>Catégorie</th>
+            <th class="num">Prix achat</th>
+            <th class="num">Prix vente</th>
+            <th class="num">Stock</th>
+            <th>Synchro</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="corpsTableProduits"></tbody>
+      </table>
+      <p id="videProduits" class="info-vide" style="display:none;">Aucun produit pour le moment. Ajoutez votre premier article.</p>
+    </div>
+  </section>
+
+  <!-- ===================== VUE STOCK ===================== -->
+  <section id="vue-stock" class="vue">
+    <h1 class="titre-vue">Mouvements de stock</h1>
+    <p class="souscription-vue">Enregistrez une réception, une perte/casse, ou corrigez un inventaire.</p>
+
+    <div class="carte">
+      <div class="ligne-form">
+        <div>
+          <label for="stockProduit">Produit</label>
+          <select id="stockProduit"></select>
+        </div>
+        <div>
+          <label for="stockType">Type de mouvement</label>
+          <select id="stockType">
+            <option value="entree">Entrée (réception)</option>
+            <option value="sortie">Sortie (perte / casse)</option>
+            <option value="ajustement">Ajustement (inventaire)</option>
+          </select>
+        </div>
+      </div>
+      <div class="ligne-form">
+        <div>
+          <label for="stockQuantite">Quantité</label>
+          <input type="number" id="stockQuantite" min="0" placeholder="0" />
+        </div>
+        <div>
+          <label for="stockMotif">Motif (optionnel)</label>
+          <input type="text" id="stockMotif" placeholder="Ex: Réception fournisseur X" />
+        </div>
+      </div>
+      <button id="btnEnregistrerMouvement" class="btn btn-principal btn-pleine-largeur">Enregistrer le mouvement</button>
+    </div>
+
+    <h2 style="font-size:1rem; margin: 22px 0 10px;">Journal des mouvements récents</h2>
+    <div class="carte" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Produit</th>
+            <th>Type</th>
+            <th class="num">Quantité</th>
+            <th>Motif</th>
+            <th>Synchro</th>
+          </tr>
+        </thead>
+        <tbody id="corpsTableStock"></tbody>
+      </table>
+      <p id="videStock" class="info-vide" style="display:none;">Aucun mouvement enregistré.</p>
+    </div>
+  </section>
+
+  <!-- ===================== VUE KPI ===================== -->
+  <section id="vue-kpi" class="vue">
+    <h1 class="titre-vue">Performance du jour</h1>
+    <p class="souscription-vue" id="dateKpi">—</p>
+
+    <div class="grille-kpi">
+      <div class="kpi">
+        <div class="label">Chiffre d'affaires</div>
+        <div class="valeur" id="kpiCA">0</div>
+      </div>
+      <div class="kpi accent">
+        <div class="label">Marge nette</div>
+        <div class="valeur" id="kpiMarge">0</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Ventes encaissées</div>
+        <div class="valeur" id="kpiNbVentes">0</div>
+      </div>
+    </div>
+
+    <div class="carte">
+      <h2 style="font-size:0.95rem; margin-top:0;">🏆 Top 3 des produits les plus vendus</h2>
+      <table>
+        <thead><tr><th>Produit</th><th class="num">Qté vendue</th><th class="num">Montant généré</th></tr></thead>
+        <tbody id="corpsTop3"></tbody>
+      </table>
+      <p id="videTop3" class="info-vide" style="display:none;">Aucune vente aujourd'hui pour le moment.</p>
+    </div>
+
+    <div class="carte">
+      <h2 style="font-size:0.95rem; margin-top:0;">Ventilation par mode de paiement</h2>
+      <table>
+        <thead><tr><th>Mode de paiement</th><th class="num">Montant</th></tr></thead>
+        <tbody id="corpsVentilation"></tbody>
+      </table>
+    </div>
+
+    <button id="btnRafraichirKpi" class="btn btn-discret">↻ Rafraîchir</button>
+    <button id="btnExporterCsv" class="btn btn-discret">⬇ Exporter en CSV</button>
+  </section>
+
+  <!-- ===================== VUE PARAMÈTRES ===================== -->
+  <section id="vue-parametres" class="vue">
+    <h1 class="titre-vue">Paramètres</h1>
+    <p class="souscription-vue">Informations de la boutique et code d'accès partagé de la caisse.</p>
+
+    <div class="carte">
+      <h2 style="font-size:0.95rem; margin-top:0;">Boutique</h2>
+      <label for="paramNomBoutique">Nom de la boutique</label>
+      <input type="text" id="paramNomBoutique" />
+      <label>Identifiant de la boutique (à communiquer au siège pour la synchronisation)</label>
+      <input type="text" id="paramBoutiqueId" readonly style="background:var(--papier); font-family:var(--font-num); font-size:0.75rem;" />
+      <label for="paramCleApi">Clé API de synchronisation (fournie par le siège, optionnel)</label>
+      <input type="text" id="paramCleApi" placeholder="Laisser vide en mode démo" />
+      <button id="btnSauverParametresBoutique" class="btn btn-principal btn-pleine-largeur">Enregistrer</button>
+    </div>
+
+    <div class="carte">
+      <h2 style="font-size:0.95rem; margin-top:0;">Code d'accès de la caisse</h2>
+      <p class="souscription-vue">Ce code unique est partagé par toute l'équipe qui utilise cette caisse.</p>
+      <label for="paramNouveauCode">Nouveau code (4 chiffres)</label>
+      <input type="password" id="paramNouveauCode" inputmode="numeric" maxlength="4" placeholder="••••" />
+      <button id="btnChangerCodeAcces" class="btn btn-discret btn-pleine-largeur">Changer le code</button>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===================== MODALE PRODUIT ===================== -->
+<div id="modaleProduit" class="fond-modale">
+  <div class="modale">
+    <h2 id="titreModaleProduit">Nouveau produit</h2>
+    <input type="hidden" id="produitIdEdition" />
+
+    <label for="champNom">Nom du produit *</label>
+    <input type="text" id="champNom" placeholder="Ex: Riz local 5kg" />
+
+    <label for="champCodeBarre">Code-barres</label>
+    <input type="text" id="champCodeBarre" placeholder="Ex: 3012345678901" />
+
+    <div class="ligne-form">
+      <div>
+        <label for="champPrixAchat">Prix d'achat *</label>
+        <input type="number" id="champPrixAchat" min="0" placeholder="0" />
+      </div>
+      <div>
+        <label for="champPrixVente">Prix de vente *</label>
+        <input type="number" id="champPrixVente" min="0" placeholder="0" />
+      </div>
+    </div>
+
+    <div class="ligne-form">
+      <div>
+        <label for="champStockActuel">Stock actuel</label>
+        <input type="number" id="champStockActuel" min="0" placeholder="0" />
+      </div>
+      <div>
+        <label for="champStockAlerte">Seuil d'alerte</label>
+        <input type="number" id="champStockAlerte" min="0" placeholder="0" />
+      </div>
+    </div>
+
+    <label for="champCategorie">Catégorie</label>
+    <input type="text" id="champCategorie" placeholder="Ex: Épicerie, Boissons…" />
+
+    <div class="modale-actions">
+      <button id="btnAnnulerProduit" class="btn btn-discret">Annuler</button>
+      <button id="btnSauverProduit" class="btn btn-principal">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Zone imprimable (masquée à l'écran, visible uniquement à l'impression) -->
+<div id="zoneImpressionTicket" class="zone-impression"></div>
+
+<!-- Toast de notification -->
+<div id="toast"></div>
+
+<!-- ===================== SCRIPTS ===================== -->
+<script src="js/db.js"></script>
+<script src="js/config.js"></script>
+<script src="js/acces.js"></script>
+<script src="js/produits.js"></script>
+<script src="js/ventes.js"></script>
+<script src="js/stock.js"></script>
+<script src="js/kpi.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
