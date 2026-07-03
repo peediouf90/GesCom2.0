@@ -252,11 +252,21 @@
       <h2 style="font-size:0.95rem; margin-top:0;">Boutique</h2>
       <label for="paramNomBoutique">Nom de la boutique</label>
       <input type="text" id="paramNomBoutique" />
-      <label>Identifiant de la boutique (à communiquer au siège pour la synchronisation)</label>
+      <label>Identifiant de la boutique</label>
       <input type="text" id="paramBoutiqueId" readonly style="background:var(--papier); font-family:var(--font-num); font-size:0.75rem;" />
-      <label for="paramCleApi">Clé API de synchronisation (fournie par le siège, optionnel)</label>
-      <input type="text" id="paramCleApi" placeholder="Laisser vide en mode démo" />
-      <button id="btnSauverParametresBoutique" class="btn btn-principal btn-pleine-largeur">Enregistrer</button>
+      <button id="btnSauverParametresBoutique" class="btn btn-discret btn-pleine-largeur">Enregistrer le nom</button>
+    </div>
+
+    <div class="carte">
+      <h2 style="font-size:0.95rem; margin-top:0;">Synchronisation</h2>
+      <p class="souscription-vue" id="statutSynchro">Vos données restent uniquement sur cet appareil tant que la synchronisation n'est pas activée.</p>
+      <button id="btnActiverSync" class="btn btn-principal btn-pleine-largeur">☁️ Activer la synchronisation</button>
+      <details style="margin-top:12px;">
+        <summary style="cursor:pointer; font-size:0.78rem; color:var(--gris-texte);">Options avancées (clé API manuelle)</summary>
+        <label for="paramCleApi" style="margin-top:10px;">Clé API de synchronisation</label>
+        <input type="text" id="paramCleApi" placeholder="Laisser vide si vous utilisez le bouton ci-dessus" />
+        <button id="btnSauverCleApiManuelle" class="btn btn-discret btn-pleine-largeur" style="margin-top:8px;">Enregistrer cette clé</button>
+      </details>
     </div>
 
     <div class="carte">
