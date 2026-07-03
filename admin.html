@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GesCom2.0 — Tableau de bord opérateur</title>
+<meta name="robots" content="noindex, nofollow" />
+<style>
+:root {
+  --encre: #16213a; --encre-clair: #253356; --papier: #f8f5ee; --papier-carte: #fff;
+  --ambre: #e8952f; --ambre-fonce: #c8791a; --vert: #2f8f5b; --rouge: #c0392b;
+  --gris-texte: #5b6270; --gris-ligne: #e4dfd3;
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-num: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--papier); color: var(--encre); font-family: var(--font-ui); }
+.enveloppe { max-width: 1100px; margin: 0 auto; padding: 24px 20px 60px; }
+
+header.entete { background: var(--encre); color: #fff; padding: 18px 20px; }
+header.entete .contenu { max-width: 1100px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+header.entete h1 { font-size: 1.05rem; margin: 0; }
+header.entete h1 span { color: var(--ambre); }
+.btn { border: none; border-radius: 7px; padding: 9px 16px; font-weight: 700; font-size: 0.82rem; cursor: pointer; }
+.btn-principal { background: var(--ambre); color: var(--encre); }
+.btn-discret { background: var(--gris-ligne); color: var(--encre); }
+.btn-danger { background: var(--rouge); color: #fff; }
+
+/* Écran de connexion admin */
+#ecranLogin { min-height: 80vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+#ecranLogin .carte { background: var(--papier-carte); border-radius: 10px; padding: 30px; max-width: 360px; width: 100%; box-shadow: 0 10px 30px rgba(22,33,58,0.12); }
+#ecranLogin h2 { margin-top: 0; }
+#ecranLogin input { width: 100%; padding: 11px; border: 1px solid var(--gris-ligne); border-radius: 6px; font-size: 0.95rem; margin: 10px 0 16px; }
+
+/* Stats globales */
+.grille-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 14px; margin: 24px 0; }
+.stat { background: var(--encre); color: #fff; border-radius: 10px; padding: 16px; }
+.stat .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: #aab2c8; }
+.stat .valeur { font-family: var(--font-num); font-size: 1.5rem; font-weight: 800; margin-top: 4px; }
+.stat.ambre .valeur { color: var(--ambre); }
+
+/* Table boutiques */
+table { width: 100%; border-collapse: collapse; background: var(--papier-carte); border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(22,33,58,0.06); }
+th { text-align: left; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gris-texte); padding: 10px 12px; border-bottom: 2px solid var(--gris-ligne); }
+td { padding: 12px; border-bottom: 1px solid var(--gris-ligne); font-size: 0.85rem; vertical-align: middle; }
+td.num { font-family: var(--font-num); }
+.tag { display: inline-block; font-size: 0.68rem; font-weight: 700; padding: 3px 9px; border-radius: 20px; }
+.tag.essai { background: rgba(232,149,47,0.18); color: var(--ambre-fonce); }
+.tag.actif { background: rgba(47,143,91,0.15); color: var(--vert); }
+.tag.expire { background: rgba(192,57,43,0.12); color: var(--rouge); }
+.tag.suspendu { background: rgba(91,98,112,0.15); color: var(--gris-texte); }
+.actions-ligne { display: flex; gap: 6px; flex-wrap: wrap; }
+.actions-ligne button { font-size: 0.72rem; padding: 6px 10px; }
+#chargement, #vide { text-align: center; padding: 40px; color: var(--gris-texte); }
+#appDashboard { display: none; }
+</style>
+</head>
+<body>
+
+<div id="ecranLogin">
+  <div class="carte">
+    <h2>Tableau de bord</h2>
+    <p style="color:var(--gris-texte); font-size:0.85rem;">Accès réservé à l'opérateur GesCom2.0.</p>
+    <input type="password" id="champSecret" placeholder="Clé d'administration" />
+    <button id="btnConnexionAdmin" class="btn btn-principal" style="width:100%;">Entrer</button>
+    <p id="erreurLogin" style="color:var(--rouge); font-size:0.8rem; display:none; margin-top:10px;"></p>
+  </div>
+</div>
+
+<div id="appDashboard">
+  <header class="entete">
+    <div class="contenu">
+      <h1>GesCom<span>2.0</span> — Opérateur</h1>
+      <button id="btnDeconnexion" class="btn btn-discret">Se déconnecter</button>
+    </div>
+  </header>
+
+  <div class="enveloppe">
+    <div class="grille-stats" id="grilleStats"></div>
+
+    <div id="chargement">Chargement des boutiques…</div>
+    <div id="vide" style="display:none;">Aucune boutique enregistrée pour le moment.</div>
+
+    <table id="tableBoutiques" style="display:none;">
+      <thead>
+        <tr>
+          <th>Boutique</th>
+          <th>Inscrite le</th>
+          <th>Abonnement</th>
+          <th>Échéance</th>
+          <th class="num">Ventes</th>
+          <th class="num">CA total</th>
+          <th>Dernière activité</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="corpsTableBoutiques"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const CLE_SESSION_ADMIN = 'gescom_admin_secret';
+const URL_API = '/api/admin/boutiques';
+
+function formaterMontant(n) { return Math.round(n || 0).toLocaleString('fr-FR'); }
+function formaterDate(iso) { return iso ? new Date(iso).toLocaleDateString('fr-FR') : '—'; }
+function joursRestants(iso) {
+  if (!iso) return null;
+  return Math.ceil((new Date(iso) - new Date()) / (1000 * 60 * 60 * 24));
+}
+
+function libelleStatut(b) {
+  const jours = joursRestants(b.abonnementExpireLe);
+  if (b.abonnementStatut === 'suspendu') return { classe: 'suspendu', texte: 'Suspendu' };
+  if (b.abonnementStatut === 'essai') return { classe: 'essai', texte: jours >= 0 ? `Essai (${jours}j restants)` : 'Essai expiré' };
+  if (jours !== null && jours < 0) return { classe: 'expire', texte: 'Expiré' };
+  return { classe: 'actif', texte: `Actif (${jours}j restants)` };
+}
+
+async function appelApi(methode, corps) {
+  const secret = sessionStorage.getItem(CLE_SESSION_ADMIN);
+  const reponse = await fetch(URL_API, {
+    method: methode,
+    headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': secret },
+    body: corps ? JSON.stringify(corps) : undefined
+  });
+  if (!reponse.ok) {
+    const erreur = await reponse.json().catch(() => ({}));
+    throw new Error(erreur.erreur || `Erreur ${reponse.status}`);
+  }
+  return reponse.json();
+}
+
+async function chargerTableauDeBord() {
+  document.getElementById('chargement').style.display = 'block';
+  document.getElementById('tableBoutiques').style.display = 'none';
+  document.getElementById('vide').style.display = 'none';
+
+  try {
+    const { boutiques } = await appelApi('GET');
+    document.getElementById('chargement').style.display = 'none';
+
+    if (boutiques.length === 0) {
+      document.getElementById('vide').style.display = 'block';
+      document.getElementById('grilleStats').innerHTML = '';
+      return;
+    }
+
+    // Stats globales
+    const actives = boutiques.filter((b) => b.abonnementStatut === 'actif').length;
+    const essai = boutiques.filter((b) => b.abonnementStatut === 'essai').length;
+    const caTotal = boutiques.reduce((s, b) => s + b.chiffreAffairesTotal, 0);
+
+    document.getElementById('grilleStats').innerHTML = `
+      <div class="stat"><div class="label">Boutiques totales</div><div class="valeur">${boutiques.length}</div></div>
+      <div class="stat"><div class="label">Abonnements actifs</div><div class="valeur">${actives}</div></div>
+      <div class="stat"><div class="label">En essai</div><div class="valeur">${essai}</div></div>
+      <div class="stat ambre"><div class="label">CA cumulé (toutes boutiques)</div><div class="valeur">${formaterMontant(caTotal)}</div></div>
+    `;
+
+    const corps = document.getElementById('corpsTableBoutiques');
+    corps.innerHTML = boutiques
+      .map((b) => {
+        const statut = libelleStatut(b);
+        return `
+        <tr>
+          <td><strong>${echapper(b.nom)}</strong><br/><span style="font-family:var(--font-num); font-size:0.68rem; color:var(--gris-texte);">${b.id.slice(0, 8)}</span></td>
+          <td>${formaterDate(b.creeLe)}</td>
+          <td><span class="tag ${statut.classe}">${statut.texte}</span></td>
+          <td>${formaterDate(b.abonnementExpireLe)}</td>
+          <td class="num">${b.nombreVentes}</td>
+          <td class="num">${formaterMontant(b.chiffreAffairesTotal)}</td>
+          <td>${formaterDate(b.derniereVente)}</td>
+          <td>
+            <div class="actions-ligne">
+              <button class="btn btn-principal" data-action="marquer_paye" data-id="${b.id}">Marquer payé (+30j)</button>
+              ${
+                b.abonnementStatut === 'suspendu'
+                  ? `<button class="btn btn-discret" data-action="reactiver" data-id="${b.id}">Réactiver</button>`
+                  : `<button class="btn btn-danger" data-action="suspendre" data-id="${b.id}">Suspendre</button>`
+              }
+            </div>
+          </td>
+        </tr>`;
+      })
+      .join('');
+
+    document.getElementById('tableBoutiques').style.display = 'table';
+
+    corps.querySelectorAll('[data-action]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try {
+          await appelApi('PATCH', { boutiqueId: btn.dataset.id, action: btn.dataset.action });
+          chargerTableauDeBord();
+        } catch (err) {
+          alert('Erreur : ' + err.message);
+          btn.disabled = false;
+        }
+      });
+    });
+  } catch (err) {
+    document.getElementById('chargement').textContent = 'Erreur de chargement : ' + err.message;
+  }
+}
+
+function echapper(texte) {
+  const div = document.createElement('div');
+  div.textContent = texte == null ? '' : String(texte);
+  return div.innerHTML;
+}
+
+function afficherDashboard() {
+  document.getElementById('ecranLogin').style.display = 'none';
+  document.getElementById('appDashboard').style.display = 'block';
+  chargerTableauDeBord();
+}
+
+document.getElementById('btnConnexionAdmin').addEventListener('click', async () => {
+  const secret = document.getElementById('champSecret').value;
+  sessionStorage.setItem(CLE_SESSION_ADMIN, secret);
+
+  try {
+    await appelApi('GET'); // valide la clé immédiatement
+    afficherDashboard();
+  } catch (err) {
+    document.getElementById('erreurLogin').textContent = 'Clé invalide.';
+    document.getElementById('erreurLogin').style.display = 'block';
+    sessionStorage.removeItem(CLE_SESSION_ADMIN);
+  }
+});
+
+document.getElementById('btnDeconnexion').addEventListener('click', () => {
+  sessionStorage.removeItem(CLE_SESSION_ADMIN);
+  document.getElementById('appDashboard').style.display = 'none';
+  document.getElementById('ecranLogin').style.display = 'flex';
+});
+
+// Reconnexion automatique si une session admin existe déjà (même onglet)
+if (sessionStorage.getItem(CLE_SESSION_ADMIN)) {
+  afficherDashboard();
+}
+</script>
+</body>
+</html>
