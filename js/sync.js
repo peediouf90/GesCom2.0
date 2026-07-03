@@ -17,7 +17,7 @@
  */
 
 const CONFIG_SYNC = {
-  mode: 'api', // 'simulation' | 'api'
+  mode: 'simulation', // 'simulation' | 'api' — surchargé automatiquement au démarrage (voir demarrerApplication dans app.js)
   // '/api' fonctionne automatiquement quand le backend sert aussi le frontend
   // (voir backend/server.js). Si l'API est hébergée sur un autre domaine,
   // remplacez par une URL absolue, ex: 'https://api.monsite.com/api'.
