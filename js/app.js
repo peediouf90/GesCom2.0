@@ -515,8 +515,23 @@ document.getElementById('btnExporterCsv').addEventListener('click', async () => 
 });
 
 // =================================================================
-//  VUE PARAMÈTRES (boutique + code d'accès partagé)
+//  VUE PARAMÈTRES (boutique + synchronisation + code d'accès partagé)
 // =================================================================
+
+function rendreStatutSynchro(config) {
+  const statutEl = document.getElementById('statutSynchro');
+  const boutonEl = document.getElementById('btnActiverSync');
+
+  if (config.cleApiSync) {
+    statutEl.textContent = '✅ Synchronisation active — vos données sont sauvegardées automatiquement.';
+    boutonEl.textContent = '☁️ Synchronisation déjà activée';
+    boutonEl.disabled = true;
+  } else {
+    statutEl.textContent = "Vos données restent uniquement sur cet appareil tant que la synchronisation n'est pas activée.";
+    boutonEl.textContent = '☁️ Activer la synchronisation';
+    boutonEl.disabled = false;
+  }
+}
 
 async function rendreParametres() {
   const config = obtenirConfigBoutique();
@@ -526,21 +541,79 @@ async function rendreParametres() {
   document.getElementById('paramBoutiqueId').value = config.id;
   document.getElementById('paramCleApi').value = config.cleApiSync || '';
   document.getElementById('paramNouveauCode').value = '';
+  rendreStatutSynchro(config);
 }
 
 document.getElementById('btnSauverParametresBoutique').addEventListener('click', () => {
   const nom = document.getElementById('paramNomBoutique').value.trim();
-  const cleApiSync = document.getElementById('paramCleApi').value.trim();
 
   if (!nom) {
     afficherToast('Le nom de la boutique est obligatoire.', 'erreur');
     return;
   }
 
-  definirConfigBoutique({ nom, cleApiSync });
-  CONFIG_SYNC.cleApi = cleApiSync; // applique immédiatement à la session en cours (module sync.js)
+  const config = definirConfigBoutique({ nom });
   document.getElementById('nomBoutiqueHeader').textContent = nom;
-  afficherToast('Paramètres enregistrés.', 'succes');
+  afficherToast('Nom enregistré.', 'succes');
+});
+
+// ---- Activation en un clic : inscrit la boutique auprès de l'API et récupère sa clé ----
+document.getElementById('btnActiverSync').addEventListener('click', async () => {
+  const config = obtenirConfigBoutique();
+  const bouton = document.getElementById('btnActiverSync');
+
+  if (!navigator.onLine) {
+    afficherToast('Connexion internet requise pour activer la synchronisation.', 'erreur');
+    return;
+  }
+
+  bouton.disabled = true;
+  bouton.textContent = 'Activation en cours…';
+
+  try {
+    const reponse = await fetch(`${CONFIG_SYNC.urlApi}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ boutiqueId: config.id, nom: config.nom })
+    });
+
+    if (!reponse.ok) {
+      const erreur = await reponse.json().catch(() => ({}));
+      throw new Error(erreur.erreur || `Erreur serveur (${reponse.status})`);
+    }
+
+    const { apiKey } = await reponse.json();
+
+    definirConfigBoutique({ nom: config.nom, cleApiSync: apiKey });
+    CONFIG_SYNC.cleApi = apiKey;
+    CONFIG_SYNC.mode = 'api';
+    document.getElementById('paramCleApi').value = apiKey;
+
+    rendreStatutSynchro(obtenirConfigBoutique());
+    afficherToast('Synchronisation activée avec succès !', 'succes');
+    synchroniserDonnees();
+  } catch (err) {
+    afficherToast('Échec de l\'activation : ' + err.message, 'erreur');
+    bouton.disabled = false;
+    bouton.textContent = '☁️ Activer la synchronisation';
+  }
+});
+
+// ---- Option avancée : coller une clé API existante à la main (support/debug) ----
+document.getElementById('btnSauverCleApiManuelle').addEventListener('click', () => {
+  const config = obtenirConfigBoutique();
+  const cleApiSync = document.getElementById('paramCleApi').value.trim();
+
+  if (!cleApiSync) {
+    afficherToast('Champ vide — rien à enregistrer.', 'erreur');
+    return;
+  }
+
+  definirConfigBoutique({ nom: config.nom, cleApiSync });
+  CONFIG_SYNC.cleApi = cleApiSync;
+  CONFIG_SYNC.mode = 'api';
+  rendreStatutSynchro(obtenirConfigBoutique());
+  afficherToast('Clé API enregistrée.', 'succes');
 });
 
 document.getElementById('btnChangerCodeAcces').addEventListener('click', async () => {
@@ -643,7 +716,12 @@ function demarrerApplication() {
 
   const config = obtenirConfigBoutique();
   document.getElementById('nomBoutiqueHeader').textContent = config.nom;
-  if (config.cleApiSync) CONFIG_SYNC.cleApi = config.cleApiSync;
+  if (config.cleApiSync) {
+    CONFIG_SYNC.cleApi = config.cleApiSync;
+    CONFIG_SYNC.mode = 'api';
+  } else {
+    CONFIG_SYNC.mode = 'simulation'; // pas encore de clé : la sync réelle sera activée depuis Paramètres
+  }
 
   activerVue('caisse');
   rendreTicket();
