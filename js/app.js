@@ -261,13 +261,27 @@ async function rendreTableProduits(filtre = '') {
       <td class="num">${formaterMontant(p.prixVente)}</td>
       <td class="num">${p.stockActuel}</td>
       <td><span class="tag ${p.statutSync}">${p.statutSync === 'pending' ? 'En attente' : 'Synchronisé'}</span></td>
-      <td><button class="btn btn-discret" data-editer="${p.id}">Modifier</button></td>
+      <td>
+        <button class="btn btn-discret" data-editer="${p.id}">Modifier</button>
+        <button class="btn btn-danger" data-supprimer="${p.id}" data-nom="${echapper(p.nom)}" style="margin-left:4px;">Suppr.</button>
+      </td>
     </tr>`
     )
     .join('');
 
   corps.querySelectorAll('[data-editer]').forEach((btn) => {
     btn.addEventListener('click', () => ouvrirModaleProduit(btn.dataset.editer));
+  });
+
+  corps.querySelectorAll('[data-supprimer]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const confirmation = window.confirm(`Supprimer définitivement "${btn.dataset.nom}" ?\n\nCette action est irréversible localement (l'historique des ventes déjà encaissées avec ce produit n'est pas affecté).`);
+      if (!confirmation) return;
+
+      await supprimerProduit(btn.dataset.supprimer);
+      afficherToast(`"${btn.dataset.nom}" supprimé.`, 'succes');
+      rendreTableProduits();
+    });
   });
 }
 
