@@ -14,7 +14,7 @@
  * forcer la mise à jour du cache chez les utilisateurs.
  */
 
-const CACHE_VERSION = 'gescom-v6';
+const CACHE_VERSION = 'gescom-v7';
 const CACHE_APP_SHELL = `${CACHE_VERSION}-app-shell`;
 
 // Liste exhaustive des fichiers nécessaires au fonctionnement hors-ligne complet
