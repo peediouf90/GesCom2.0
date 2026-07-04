@@ -71,21 +71,51 @@ async function rendreCatalogueCaisse(filtre = '') {
     .map(
       (p) => `
     <div class="item-catalogue" data-id="${p.id}">
-      <div>
+      <div class="infos-item-catalogue">
         <div class="nom">${echapper(p.nom)}</div>
         <div class="meta">Stock: ${p.stockActuel} ${p.stockActuel <= p.stockAlerte ? '⚠️' : ''}</div>
       </div>
       <div class="prix">${formaterMontant(p.prixVente)}</div>
+      <input type="number" class="qte-catalogue" data-id="${p.id}" min="1" step="1" value="1" title="Quantité à ajouter" />
+      <button class="btn-ajouter-catalogue" data-id="${p.id}" title="Ajouter au ticket">+</button>
     </div>`
     )
     .join('');
 
+  // Clic sur la ligne (hors champ quantité et bouton) : ajoute 1 unité rapidement, comme avant
   conteneur.querySelectorAll('.item-catalogue').forEach((el) => {
-    el.addEventListener('click', () => ajouterAuPanier(el.dataset.id));
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('.qte-catalogue') || e.target.closest('.btn-ajouter-catalogue')) return;
+      ajouterAuPanier(el.dataset.id, 1);
+    });
+  });
+
+  // Bouton "+" : ajoute la quantité saisie dans le champ voisin
+  conteneur.querySelectorAll('.btn-ajouter-catalogue').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const champQte = conteneur.querySelector(`.qte-catalogue[data-id="${btn.dataset.id}"]`);
+      const quantite = Math.max(1, parseInt(champQte.value, 10) || 1);
+      ajouterAuPanier(btn.dataset.id, quantite);
+      champQte.value = 1; // réinitialise pour le prochain ajout
+    });
+  });
+
+  // Empêche le clic dans le champ quantité de déclencher l'ajout de 1, et valide sur "Entrée"
+  conteneur.querySelectorAll('.qte-catalogue').forEach((champ) => {
+    champ.addEventListener('click', (e) => e.stopPropagation());
+    champ.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const quantite = Math.max(1, parseInt(champ.value, 10) || 1);
+        ajouterAuPanier(champ.dataset.id, quantite);
+        champ.value = 1;
+      }
+    });
   });
 }
 
-async function ajouterAuPanier(produitId) {
+async function ajouterAuPanier(produitId, quantiteAjoutee = 1) {
   const produit = await db.produits.get(produitId);
   if (!produit) return;
 
@@ -95,19 +125,28 @@ async function ajouterAuPanier(produitId) {
   }
 
   const ligneExistante = panierCourant.find((l) => l.produitId === produitId);
+  const quantiteDejaDansLePanier = ligneExistante ? ligneExistante.quantite : 0;
+  const quantiteMaxAjoutable = produit.stockActuel - quantiteDejaDansLePanier;
+
+  if (quantiteMaxAjoutable <= 0) {
+    afficherToast('Quantité maximale disponible atteinte', 'erreur');
+    return;
+  }
+
+  const quantiteReellementAjoutee = Math.min(quantiteAjoutee, quantiteMaxAjoutable);
+  if (quantiteReellementAjoutee < quantiteAjoutee) {
+    afficherToast(`Seulement ${quantiteReellementAjoutee} unité(s) disponible(s) en stock, ajoutées.`, 'erreur');
+  }
+
   if (ligneExistante) {
-    if (ligneExistante.quantite >= produit.stockActuel) {
-      afficherToast('Quantité maximale disponible atteinte', 'erreur');
-      return;
-    }
-    ligneExistante.quantite += 1;
+    ligneExistante.quantite += quantiteReellementAjoutee;
   } else {
     panierCourant.push({
       produitId: produit.id,
       nom: produit.nom,
       prixUnitaire: produit.prixVente,
       prixAchatUnitaire: produit.prixAchat,
-      quantite: 1
+      quantite: quantiteReellementAjoutee
     });
   }
   rendreTicket();
@@ -134,7 +173,7 @@ function rendreTicket() {
       (l) => `
     <div class="ligne-ticket">
       <span class="designation">${echapper(l.nom)}</span>
-      <span class="qte">×${l.quantite}</span>
+      <span class="qte">×<input type="number" class="qte-ticket" data-id="${l.produitId}" min="1" step="1" value="${l.quantite}" /></span>
       <span class="montant">${formaterMontant(l.prixUnitaire * l.quantite)}</span>
       <button class="retirer" data-id="${l.produitId}" title="Retirer">✕</button>
     </div>`
@@ -145,8 +184,32 @@ function rendreTicket() {
     btn.addEventListener('click', () => retirerDuPanier(btn.dataset.id));
   });
 
+  conteneur.querySelectorAll('.qte-ticket').forEach((champ) => {
+    champ.addEventListener('change', async () => {
+      const nouvelleQuantite = Math.max(1, parseInt(champ.value, 10) || 1);
+      await modifierQuantitePanier(champ.dataset.id, nouvelleQuantite);
+    });
+  });
+
   const total = panierCourant.reduce((s, l) => s + l.prixUnitaire * l.quantite, 0);
   totalEl.textContent = formaterMontant(total);
+}
+
+/** Fixe directement la quantité d'une ligne du ticket (saisie manuelle), en respectant le stock disponible. */
+async function modifierQuantitePanier(produitId, nouvelleQuantite) {
+  const ligne = panierCourant.find((l) => l.produitId === produitId);
+  if (!ligne) return;
+
+  const produit = await db.produits.get(produitId);
+  const maxDisponible = produit ? produit.stockActuel : nouvelleQuantite;
+
+  if (nouvelleQuantite > maxDisponible) {
+    afficherToast(`Stock disponible : ${maxDisponible} unité(s) maximum.`, 'erreur');
+    ligne.quantite = maxDisponible;
+  } else {
+    ligne.quantite = nouvelleQuantite;
+  }
+  rendreTicket();
 }
 
 document.getElementById('rechercheCaisse').addEventListener('input', (e) => {
