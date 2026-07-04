@@ -247,15 +247,40 @@ tr.alerte-stock td { background: rgba(192, 57, 43, 0.06); }
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   padding: 10px 6px;
   border-bottom: 1px solid var(--gris-ligne);
   cursor: pointer;
 }
 
 .item-catalogue:hover { background: #fbf3e6; }
+.item-catalogue .infos-item-catalogue { flex: 1; min-width: 0; }
 .item-catalogue .nom { font-weight: 600; font-size: 0.88rem; }
 .item-catalogue .meta { font-size: 0.72rem; color: var(--gris-texte); }
-.item-catalogue .prix { font-family: var(--font-num); font-weight: 700; color: var(--ambre-fonce); }
+.item-catalogue .prix { font-family: var(--font-num); font-weight: 700; color: var(--ambre-fonce); white-space: nowrap; }
+
+.qte-catalogue {
+  width: 52px;
+  padding: 7px 4px;
+  text-align: center;
+  font-family: var(--font-num);
+  border: 1px solid var(--gris-ligne);
+  border-radius: 6px;
+  font-size: 0.88rem;
+}
+
+.btn-ajouter-catalogue {
+  width: 30px; height: 30px;
+  border-radius: 6px;
+  border: none;
+  background: var(--ambre);
+  color: var(--encre);
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.btn-ajouter-catalogue:hover { background: var(--ambre-fonce); }
 
 /* ---- Le "ticket" : signature visuelle de l'app ---- */
 .ticket { background: var(--papier-carte); border-radius: var(--rayon); box-shadow: var(--ombre); position: sticky; top: 100px; }
@@ -273,7 +298,16 @@ tr.alerte-stock td { background: rgba(192, 57, 43, 0.06); }
 
 .ligne-ticket { display: flex; justify-content: space-between; font-size: 0.82rem; padding: 5px 0; }
 .ligne-ticket .designation { flex: 1; }
-.ligne-ticket .qte { font-family: var(--font-num); color: var(--gris-texte); margin: 0 8px; }
+.ligne-ticket .qte { font-family: var(--font-num); color: var(--gris-texte); margin: 0 8px; display: inline-flex; align-items: center; gap: 2px; }
+.qte-ticket {
+  width: 40px;
+  padding: 3px 2px;
+  text-align: center;
+  font-family: var(--font-num);
+  border: 1px solid var(--gris-ligne);
+  border-radius: 5px;
+  font-size: 0.82rem;
+}
 .ligne-ticket .montant { font-family: var(--font-num); font-weight: 700; }
 .ligne-ticket .retirer { background: none; border: none; color: var(--rouge); cursor: pointer; font-size: 0.9rem; padding: 0 4px; }
 
