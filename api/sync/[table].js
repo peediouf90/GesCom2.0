@@ -50,6 +50,13 @@ module.exports = async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
+    if (boutique.abonnementStatut === 'suspendu') {
+      return res.status(402).json({
+        erreur: 'abonnement_suspendu',
+        message: "L'abonnement de cette boutique est suspendu. Contactez l'opérateur pour réactiver la synchronisation."
+      });
+    }
+
     const elementsEnvoyes = req.body && req.body.elements;
 
     if (!Array.isArray(elementsEnvoyes)) {
