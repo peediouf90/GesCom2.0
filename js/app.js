@@ -68,35 +68,48 @@ async function rendreCatalogueCaisse(filtre = '') {
   }
 
   conteneur.innerHTML = produits
-    .map(
-      (p) => `
+    .map((p) => {
+      const aDesTarifsAlternatifs = p.prixGros != null || p.prixDemiGros != null;
+      const optionsTarif = [
+        `<option value="detail">Détail — ${formaterMontant(p.prixVente)}</option>`,
+        p.prixDemiGros != null ? `<option value="demiGros">Demi-gros — ${formaterMontant(p.prixDemiGros)}</option>` : '',
+        p.prixGros != null ? `<option value="gros">Gros — ${formaterMontant(p.prixGros)}</option>` : ''
+      ].join('');
+
+      return `
     <div class="item-catalogue" data-id="${p.id}">
       <div class="infos-item-catalogue">
         <div class="nom">${echapper(p.nom)}</div>
         <div class="meta">Stock: ${p.stockActuel} ${p.stockActuel <= p.stockAlerte ? '⚠️' : ''}</div>
+        ${aDesTarifsAlternatifs ? `<select class="tarif-catalogue" data-id="${p.id}">${optionsTarif}</select>` : ''}
       </div>
       <div class="prix">${formaterMontant(p.prixVente)}</div>
       <input type="number" class="qte-catalogue" data-id="${p.id}" min="1" step="1" value="1" title="Quantité à ajouter" />
       <button class="btn-ajouter-catalogue" data-id="${p.id}" title="Ajouter au ticket">+</button>
-    </div>`
-    )
+    </div>`;
+    })
     .join('');
 
-  // Clic sur la ligne (hors champ quantité et bouton) : ajoute 1 unité rapidement, comme avant
+  function tarifSelectionne(produitId) {
+    const select = conteneur.querySelector(`.tarif-catalogue[data-id="${produitId}"]`);
+    return select ? select.value : 'detail';
+  }
+
+  // Clic sur la ligne (hors champ quantité, sélecteur et bouton) : ajoute 1 unité rapidement, comme avant
   conteneur.querySelectorAll('.item-catalogue').forEach((el) => {
     el.addEventListener('click', (e) => {
-      if (e.target.closest('.qte-catalogue') || e.target.closest('.btn-ajouter-catalogue')) return;
-      ajouterAuPanier(el.dataset.id, 1);
+      if (e.target.closest('.qte-catalogue') || e.target.closest('.btn-ajouter-catalogue') || e.target.closest('.tarif-catalogue')) return;
+      ajouterAuPanier(el.dataset.id, 1, tarifSelectionne(el.dataset.id));
     });
   });
 
-  // Bouton "+" : ajoute la quantité saisie dans le champ voisin
+  // Bouton "+" : ajoute la quantité saisie dans le champ voisin, au tarif sélectionné
   conteneur.querySelectorAll('.btn-ajouter-catalogue').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const champQte = conteneur.querySelector(`.qte-catalogue[data-id="${btn.dataset.id}"]`);
       const quantite = Math.max(1, parseInt(champQte.value, 10) || 1);
-      ajouterAuPanier(btn.dataset.id, quantite);
+      ajouterAuPanier(btn.dataset.id, quantite, tarifSelectionne(btn.dataset.id));
       champQte.value = 1; // réinitialise pour le prochain ajout
     });
   });
@@ -108,14 +121,14 @@ async function rendreCatalogueCaisse(filtre = '') {
       if (e.key === 'Enter') {
         e.preventDefault();
         const quantite = Math.max(1, parseInt(champ.value, 10) || 1);
-        ajouterAuPanier(champ.dataset.id, quantite);
+        ajouterAuPanier(champ.dataset.id, quantite, tarifSelectionne(champ.dataset.id));
         champ.value = 1;
       }
     });
   });
 }
 
-async function ajouterAuPanier(produitId, quantiteAjoutee = 1) {
+async function ajouterAuPanier(produitId, quantiteAjoutee = 1, tarif = 'detail') {
   const produit = await db.produits.get(produitId);
   if (!produit) return;
 
@@ -124,8 +137,11 @@ async function ajouterAuPanier(produitId, quantiteAjoutee = 1) {
     return;
   }
 
-  const ligneExistante = panierCourant.find((l) => l.produitId === produitId);
-  const quantiteDejaDansLePanier = ligneExistante ? ligneExistante.quantite : 0;
+  // Le stock est partagé entre tous les tarifs : on cumule la quantité déjà
+  // présente dans le ticket pour ce produit, tous tarifs confondus.
+  const quantiteDejaDansLePanier = panierCourant
+    .filter((l) => l.produitId === produitId)
+    .reduce((s, l) => s + l.quantite, 0);
   const quantiteMaxAjoutable = produit.stockActuel - quantiteDejaDansLePanier;
 
   if (quantiteMaxAjoutable <= 0) {
@@ -138,13 +154,24 @@ async function ajouterAuPanier(produitId, quantiteAjoutee = 1) {
     afficherToast(`Seulement ${quantiteReellementAjoutee} unité(s) disponible(s) en stock, ajoutées.`, 'erreur');
   }
 
+  // Prix appliqué selon le tarif choisi (repli sur le prix détail si le tarif
+  // demandé n'a pas de prix défini pour ce produit).
+  let prixUnitaire = produit.prixVente;
+  if (tarif === 'gros' && produit.prixGros != null) prixUnitaire = produit.prixGros;
+  else if (tarif === 'demiGros' && produit.prixDemiGros != null) prixUnitaire = produit.prixDemiGros;
+
+  // Une ligne de ticket distincte par (produit + tarif), pour ne jamais
+  // mélanger des unités vendues à des prix différents dans une même ligne.
+  const ligneExistante = panierCourant.find((l) => l.produitId === produitId && l.tarif === tarif);
+
   if (ligneExistante) {
     ligneExistante.quantite += quantiteReellementAjoutee;
   } else {
     panierCourant.push({
       produitId: produit.id,
       nom: produit.nom,
-      prixUnitaire: produit.prixVente,
+      tarif,
+      prixUnitaire,
       prixAchatUnitaire: produit.prixAchat,
       quantite: quantiteReellementAjoutee
     });
@@ -152,8 +179,8 @@ async function ajouterAuPanier(produitId, quantiteAjoutee = 1) {
   rendreTicket();
 }
 
-function retirerDuPanier(produitId) {
-  panierCourant = panierCourant.filter((l) => l.produitId !== produitId);
+function retirerDuPanier(produitId, tarif) {
+  panierCourant = panierCourant.filter((l) => !(l.produitId === produitId && l.tarif === tarif));
   rendreTicket();
 }
 
@@ -168,26 +195,28 @@ function rendreTicket() {
     return;
   }
 
+  const libellesTarif = { detail: '', demiGros: ' (Demi-gros)', gros: ' (Gros)' };
+
   conteneur.innerHTML = panierCourant
     .map(
       (l) => `
     <div class="ligne-ticket">
-      <span class="designation">${echapper(l.nom)}</span>
-      <span class="qte">×<input type="number" class="qte-ticket" data-id="${l.produitId}" min="1" step="1" value="${l.quantite}" /></span>
+      <span class="designation">${echapper(l.nom)}${libellesTarif[l.tarif] || ''}</span>
+      <span class="qte">×<input type="number" class="qte-ticket" data-id="${l.produitId}" data-tarif="${l.tarif}" min="1" step="1" value="${l.quantite}" /></span>
       <span class="montant">${formaterMontant(l.prixUnitaire * l.quantite)}</span>
-      <button class="retirer" data-id="${l.produitId}" title="Retirer">✕</button>
+      <button class="retirer" data-id="${l.produitId}" data-tarif="${l.tarif}" title="Retirer">✕</button>
     </div>`
     )
     .join('');
 
   conteneur.querySelectorAll('.retirer').forEach((btn) => {
-    btn.addEventListener('click', () => retirerDuPanier(btn.dataset.id));
+    btn.addEventListener('click', () => retirerDuPanier(btn.dataset.id, btn.dataset.tarif));
   });
 
   conteneur.querySelectorAll('.qte-ticket').forEach((champ) => {
     champ.addEventListener('change', async () => {
       const nouvelleQuantite = Math.max(1, parseInt(champ.value, 10) || 1);
-      await modifierQuantitePanier(champ.dataset.id, nouvelleQuantite);
+      await modifierQuantitePanier(champ.dataset.id, champ.dataset.tarif, nouvelleQuantite);
     });
   });
 
@@ -196,16 +225,19 @@ function rendreTicket() {
 }
 
 /** Fixe directement la quantité d'une ligne du ticket (saisie manuelle), en respectant le stock disponible. */
-async function modifierQuantitePanier(produitId, nouvelleQuantite) {
-  const ligne = panierCourant.find((l) => l.produitId === produitId);
+async function modifierQuantitePanier(produitId, tarif, nouvelleQuantite) {
+  const ligne = panierCourant.find((l) => l.produitId === produitId && l.tarif === tarif);
   if (!ligne) return;
 
   const produit = await db.produits.get(produitId);
-  const maxDisponible = produit ? produit.stockActuel : nouvelleQuantite;
+  const quantiteAutresLignes = panierCourant
+    .filter((l) => l.produitId === produitId && l.tarif !== tarif)
+    .reduce((s, l) => s + l.quantite, 0);
+  const maxDisponible = produit ? produit.stockActuel - quantiteAutresLignes : nouvelleQuantite;
 
   if (nouvelleQuantite > maxDisponible) {
     afficherToast(`Stock disponible : ${maxDisponible} unité(s) maximum.`, 'erreur');
-    ligne.quantite = maxDisponible;
+    ligne.quantite = Math.max(1, maxDisponible);
   } else {
     ligne.quantite = nouvelleQuantite;
   }
@@ -251,11 +283,12 @@ document.getElementById('btnEncaisser').addEventListener('click', async () => {
 let derniereVenteEncaissee = null;
 
 function construireHtmlTicketImprimable(vente) {
+  const libellesTarif = { detail: '', demiGros: ' (Demi-gros)', gros: ' (Gros)' };
   const lignes = vente.articles
     .map(
       (a) => `
       <div class="ligne-imp">
-        <span>${echapper(a.nom)} ×${a.quantite}</span>
+        <span>${echapper(a.nom)}${libellesTarif[a.tarif] || ''} ×${a.quantite}</span>
         <span>${formaterMontant(a.sousTotal)}</span>
       </div>`
     )
@@ -356,7 +389,7 @@ function ouvrirModaleProduit(idExistant = null) {
   document.getElementById('produitIdEdition').value = idExistant || '';
   document.getElementById('titreModaleProduit').textContent = idExistant ? 'Modifier le produit' : 'Nouveau produit';
 
-  const champs = ['champNom', 'champCodeBarre', 'champPrixAchat', 'champPrixVente', 'champStockActuel', 'champStockAlerte', 'champCategorie'];
+  const champs = ['champNom', 'champCodeBarre', 'champPrixAchat', 'champPrixVente', 'champPrixDemiGros', 'champPrixGros', 'champStockActuel', 'champStockAlerte', 'champCategorie'];
 
   if (idExistant) {
     db.produits.get(idExistant).then((p) => {
@@ -364,6 +397,8 @@ function ouvrirModaleProduit(idExistant = null) {
       document.getElementById('champCodeBarre').value = p.codeBarre || '';
       document.getElementById('champPrixAchat').value = p.prixAchat;
       document.getElementById('champPrixVente').value = p.prixVente;
+      document.getElementById('champPrixDemiGros').value = p.prixDemiGros ?? '';
+      document.getElementById('champPrixGros').value = p.prixGros ?? '';
       document.getElementById('champStockActuel').value = p.stockActuel;
       document.getElementById('champStockAlerte').value = p.stockAlerte;
       document.getElementById('champCategorie').value = p.categorie;
@@ -417,6 +452,8 @@ document.getElementById('btnSauverProduit').addEventListener('click', async () =
     codeBarre: document.getElementById('champCodeBarre').value.trim(),
     prixAchat,
     prixVente,
+    prixDemiGros: document.getElementById('champPrixDemiGros').value === '' ? null : Number(document.getElementById('champPrixDemiGros').value),
+    prixGros: document.getElementById('champPrixGros').value === '' ? null : Number(document.getElementById('champPrixGros').value),
     stockActuel: document.getElementById('champStockActuel').value || 0,
     stockAlerte: document.getElementById('champStockAlerte').value || 0,
     categorie: document.getElementById('champCategorie').value.trim() || 'Non classé'
