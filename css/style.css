@@ -259,6 +259,19 @@ tr.alerte-stock td { background: rgba(192, 57, 43, 0.06); }
 .item-catalogue .meta { font-size: 0.72rem; color: var(--gris-texte); }
 .item-catalogue .prix { font-family: var(--font-num); font-weight: 700; color: var(--ambre-fonce); white-space: nowrap; }
 
+.tarif-catalogue {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  padding: 3px 5px;
+  border: 1px solid var(--gris-ligne);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--encre);
+  max-width: 100%;
+}
+
+.label-optionnel { font-weight: 400; color: var(--gris-texte); font-size: 0.7rem; text-transform: none; }
+
 .qte-catalogue {
   width: 52px;
   padding: 7px 4px;
