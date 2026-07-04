@@ -361,6 +361,17 @@ tr.alerte-stock td { background: rgba(192, 57, 43, 0.06); }
 .separateur-header { color: #4a5478; }
 .btn-mini { padding: 4px 10px; font-size: 0.72rem; }
 
+/* ---------- Bannière d'abonnement (essai / suspendu) ---------- */
+.banniere-abonnement {
+  padding: 10px 20px;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.banniere-abonnement.avertissement { background: rgba(232,149,47,0.18); color: var(--ambre-fonce); }
+.banniere-abonnement.bloquant { background: var(--rouge); color: #fff; }
+.banniere-abonnement a { color: inherit; text-decoration: underline; font-weight: 800; }
+
 
 .ticket-dents {
   height: 14px;
