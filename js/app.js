@@ -592,6 +592,7 @@ document.getElementById('btnActiverSync').addEventListener('click', async () => 
     rendreStatutSynchro(obtenirConfigBoutique());
     afficherToast('Synchronisation activée avec succès !', 'succes');
     synchroniserDonnees();
+    verifierEtAppliquerStatutAbonnement();
   } catch (err) {
     afficherToast('Échec de l\'activation : ' + err.message, 'erreur');
     bouton.disabled = false;
@@ -726,8 +727,52 @@ function demarrerApplication() {
   activerVue('caisse');
   rendreTicket();
   mettreAJourBadgeAttente();
+  verifierEtAppliquerStatutAbonnement();
 }
 
+
+// =================================================================
+//  ABONNEMENT : bannière + blocage de l'encaissement si suspendu
+// =================================================================
+
+function rendreBanniereAbonnement() {
+  const cache = obtenirStatutAbonnementCache();
+  const banniere = document.getElementById('banniereAbonnement');
+  const boutonEncaisser = document.getElementById('btnEncaisser');
+
+  if (!cache) {
+    banniere.style.display = 'none';
+    boutonEncaisser.disabled = false;
+    return;
+  }
+
+  if (cache.abonnementStatut === 'suspendu') {
+    banniere.className = 'banniere-abonnement bloquant';
+    banniere.innerHTML = "🔒 Abonnement suspendu — l'encaissement est désactivé. Contactez l'opérateur pour réactiver votre compte.";
+    banniere.style.display = 'block';
+    boutonEncaisser.disabled = true;
+    return;
+  }
+
+  boutonEncaisser.disabled = false;
+
+  if (cache.abonnementStatut === 'essai' && cache.joursRestants !== null && cache.joursRestants <= 3) {
+    banniere.className = 'banniere-abonnement avertissement';
+    banniere.textContent =
+      cache.joursRestants > 0
+        ? `⏳ Votre essai gratuit se termine dans ${cache.joursRestants} jour(s). Contactez l'opérateur pour continuer sans interruption.`
+        : "⏳ Votre essai gratuit est terminé. Contactez l'opérateur pour activer votre abonnement.";
+    banniere.style.display = 'block';
+    return;
+  }
+
+  banniere.style.display = 'none';
+}
+
+async function verifierEtAppliquerStatutAbonnement() {
+  await verifierStatutAbonnement(); // met à jour le cache si en ligne et sync activée
+  rendreBanniereAbonnement(); // applique dans tous les cas (même hors-ligne, avec le dernier cache connu)
+}
 
 async function mettreAJourBadgeAttente() {
   const nb = await compterElementsEnAttente();
@@ -747,7 +792,10 @@ function mettreAJourPastilleReseau(enLigne) {
   texte.textContent = enLigne ? 'En ligne' : 'Hors-ligne';
 }
 
-document.addEventListener('reseau-statut', (e) => mettreAJourPastilleReseau(e.detail.enLigne));
+document.addEventListener('reseau-statut', (e) => {
+  mettreAJourPastilleReseau(e.detail.enLigne);
+  if (e.detail.enLigne) verifierEtAppliquerStatutAbonnement();
+});
 document.addEventListener('sync-terminee', () => {
   mettreAJourBadgeAttente();
   rendreTableProduits();
