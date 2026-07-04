@@ -31,6 +31,7 @@ async function encaisserVente(panier, modePaiement) {
     return {
       produitId: ligne.produitId,
       nom: ligne.nom,
+      tarif: ligne.tarif || 'detail',
       prixUnitaire: ligne.prixUnitaire,
       prixAchatUnitaire: ligne.prixAchatUnitaire, // conservé pour calcul de marge a posteriori
       quantite: ligne.quantite,
