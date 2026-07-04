@@ -9,7 +9,8 @@
 
 /**
  * Ajoute un nouveau produit dans le catalogue local.
- * @param {Object} donnees - { codeBarre, nom, prixAchat, prixVente, stockActuel, stockAlerte, categorie }
+ * @param {Object} donnees - { codeBarre, nom, prixAchat, prixVente, prixDemiGros, prixGros, stockActuel, stockAlerte, categorie }
+ *   prixDemiGros et prixGros sont optionnels : un produit sans ces prix se vend uniquement au détail (comportement inchangé).
  * @returns {Promise<string>} l'id (UUID) du produit créé
  */
 async function ajouterProduit(donnees) {
@@ -23,6 +24,8 @@ async function ajouterProduit(donnees) {
     nom: donnees.nom,
     prixAchat: Number(donnees.prixAchat) || 0,
     prixVente: Number(donnees.prixVente) || 0,
+    prixDemiGros: donnees.prixDemiGros === null || donnees.prixDemiGros === undefined || donnees.prixDemiGros === '' ? null : Number(donnees.prixDemiGros),
+    prixGros: donnees.prixGros === null || donnees.prixGros === undefined || donnees.prixGros === '' ? null : Number(donnees.prixGros),
     stockActuel: Number(donnees.stockActuel) || 0,
     stockAlerte: Number(donnees.stockAlerte) || 0,
     categorie: donnees.categorie || 'Non classé',
