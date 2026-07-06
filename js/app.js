@@ -621,15 +621,18 @@ document.getElementById('btnExporterCsv').addEventListener('click', async () => 
 function rendreStatutSynchro(config) {
   const statutEl = document.getElementById('statutSynchro');
   const boutonEl = document.getElementById('btnActiverSync');
+  const boutonPayer = document.getElementById('btnPayerAbonnement');
 
   if (config.cleApiSync) {
     statutEl.textContent = '✅ Synchronisation active — vos données sont sauvegardées automatiquement.';
     boutonEl.textContent = '☁️ Synchronisation déjà activée';
     boutonEl.disabled = true;
+    boutonPayer.style.display = 'block';
   } else {
     statutEl.textContent = "Vos données restent uniquement sur cet appareil tant que la synchronisation n'est pas activée.";
     boutonEl.textContent = '☁️ Activer la synchronisation';
     boutonEl.disabled = false;
+    boutonPayer.style.display = 'none';
   }
 }
 
@@ -715,6 +718,40 @@ document.getElementById('btnSauverCleApiManuelle').addEventListener('click', () 
   CONFIG_SYNC.mode = 'api';
   rendreStatutSynchro(obtenirConfigBoutique());
   afficherToast('Clé API enregistrée.', 'succes');
+});
+
+// ---- Paiement d'abonnement via PayDunya (Wave, Orange Money, carte...) ----
+document.getElementById('btnPayerAbonnement').addEventListener('click', async () => {
+  const config = obtenirConfigBoutique();
+  const bouton = document.getElementById('btnPayerAbonnement');
+
+  if (!navigator.onLine) {
+    afficherToast('Connexion internet requise pour payer votre abonnement.', 'erreur');
+    return;
+  }
+
+  bouton.disabled = true;
+  bouton.textContent = 'Préparation du paiement…';
+
+  try {
+    const reponse = await fetch(`${CONFIG_SYNC.urlApi}/paydunya/creer-facture`, {
+      method: 'POST',
+      headers: { 'X-API-Key': config.cleApiSync }
+    });
+
+    if (!reponse.ok) {
+      const erreur = await reponse.json().catch(() => ({}));
+      throw new Error(erreur.erreur || `Erreur serveur (${reponse.status})`);
+    }
+
+    const { urlPaiement } = await reponse.json();
+    afficherToast('Redirection vers la page de paiement…', 'succes');
+    window.location.href = urlPaiement; // redirection vers PayDunya (Wave / Orange Money / Carte)
+  } catch (err) {
+    afficherToast('Échec : ' + err.message, 'erreur');
+    bouton.disabled = false;
+    bouton.textContent = '💳 Payer / renouveler mon abonnement';
+  }
 });
 
 document.getElementById('btnChangerCodeAcces').addEventListener('click', async () => {
@@ -938,5 +975,16 @@ window.addEventListener('DOMContentLoaded', async () => {
     demarrerApplication();
   } else {
     afficherEcranDeverrouillage();
+  }
+
+  // ---- Retour depuis la page de paiement PayDunya ----
+  const parametresUrl = new URLSearchParams(window.location.search);
+  if (parametresUrl.get('paiement') === 'succes') {
+    afficherToast('Paiement reçu — vérification en cours…', 'succes');
+    setTimeout(() => verifierEtAppliquerStatutAbonnement(), 1500); // laisse le temps au webhook PayDunya d'arriver
+    window.history.replaceState({}, '', window.location.pathname); // nettoie l'URL
+  } else if (parametresUrl.get('paiement') === 'annule') {
+    afficherToast('Paiement annulé.', 'erreur');
+    window.history.replaceState({}, '', window.location.pathname);
   }
 });
