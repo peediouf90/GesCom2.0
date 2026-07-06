@@ -79,34 +79,49 @@ a { color: inherit; }
 .btn-fantome { background: transparent; color: var(--encre); border: 1.5px solid var(--gris-ligne); }
 .note-hero { font-size: 0.78rem; color: var(--gris-texte); margin-top: 14px; }
 
-/* ---- Signature : le ticket flottant ---- */
-.ticket-vitrine {
+/* ---- Signature : la mini-facture flottante ---- */
+.facture-vitrine {
   background: var(--papier-carte);
   border-radius: 10px;
   box-shadow: 0 20px 50px rgba(22,33,58,0.16);
-  padding: 22px 22px 4px;
-  transform: rotate(-2deg);
+  padding: 26px 26px 22px;
+  transform: rotate(-1.5deg);
   position: relative;
+  width: 100%;
+  max-width: 380px;
 }
-.ticket-vitrine::after {
-  content: "";
-  display: block; height: 14px; margin: 10px -1px 0;
-  background: radial-gradient(circle at 8px 0, transparent 7px, var(--papier-carte) 7px) repeat-x;
-  background-size: 16px 14px;
+.fv-entete {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2px solid var(--encre);
+  padding-bottom: 12px;
+  margin-bottom: 14px;
 }
-.ticket-vitrine .tv-entete { text-align: center; border-bottom: 1px dashed var(--gris-ligne); padding-bottom: 12px; margin-bottom: 10px; }
-.ticket-vitrine .tv-entete strong { letter-spacing: 0.04em; }
-.ticket-vitrine .tv-date { font-size: 0.7rem; color: var(--gris-texte); font-family: var(--font-num); }
-.tv-ligne { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 6px 0; }
-.tv-ligne .m { font-family: var(--font-num); font-weight: 700; }
-.tv-total { border-top: 1px dashed var(--gris-ligne); margin-top: 6px; padding: 12px 0; display: flex; justify-content: space-between; align-items: baseline; }
-.tv-total .label { font-weight: 700; }
-.tv-total .montant { font-family: var(--font-num); font-size: 1.4rem; font-weight: 800; }
+.fv-coordonnees { font-size: 0.72rem; line-height: 1.5; color: var(--gris-texte); }
+.fv-nom-boutique { font-size: 0.98rem; font-weight: 800; color: var(--encre); margin-bottom: 2px; }
+.fv-titre { text-align: right; font-size: 0.68rem; line-height: 1.5; color: var(--gris-texte); }
+.fv-mot { font-size: 1.05rem; font-weight: 800; letter-spacing: 0.06em; color: var(--ambre-fonce); margin-bottom: 2px; }
+
+.fv-table { width: 100%; border-collapse: collapse; font-size: 0.74rem; margin-bottom: 14px; }
+.fv-table th { text-align: left; font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--gris-texte); border-bottom: 1px solid var(--gris-ligne); padding: 5px 3px; }
+.fv-table td { padding: 6px 3px; border-bottom: 1px solid var(--gris-ligne); }
+.fv-table .m { font-family: var(--font-num); text-align: right; }
+
+.fv-total {
+  display: flex; justify-content: space-between; align-items: baseline;
+  border-top: 2px solid var(--encre);
+  padding-top: 10px;
+}
+.fv-total .label { font-weight: 700; font-size: 0.82rem; }
+.fv-total .montant { font-family: var(--font-num); font-size: 1.35rem; font-weight: 800; color: var(--encre); }
+
 .tv-badge {
   position: absolute; top: -14px; right: -10px;
   background: var(--vert); color: #fff; font-size: 0.68rem; font-weight: 800;
   padding: 6px 12px; border-radius: 20px; transform: rotate(6deg);
   box-shadow: 0 6px 14px rgba(47,143,91,0.35);
+  z-index: 1;
 }
 
 /* ---- Section générique ---- */
@@ -164,7 +179,7 @@ footer { padding: 30px 20px 50px; text-align: center; color: var(--gris-texte); 
 
 @media (max-width: 820px) {
   .hero { grid-template-columns: 1fr; padding-top: 40px; }
-  .ticket-vitrine { transform: none; max-width: 340px; margin: 0 auto; }
+  .facture-vitrine { transform: none; max-width: 340px; margin: 0 auto; }
 }
 </style>
 </head>
@@ -187,16 +202,29 @@ footer { padding: 30px 20px 50px; text-align: center; color: var(--gris-texte); 
     <p class="note-hero">Aucune carte bancaire requise. Installation en moins de 2 minutes.</p>
   </div>
 
-  <div class="ticket-vitrine">
+  <div class="facture-vitrine">
     <span class="tv-badge">✔ Synchronisé</span>
-    <div class="tv-entete">
-      <strong>TICKET DE CAISSE</strong><br/>
-      <span class="tv-date">Aujourd'hui, 14:32</span>
+    <div class="fv-entete">
+      <div class="fv-coordonnees">
+        <div class="fv-nom-boutique">Boutique Awa</div>
+        Marché Sandaga, Dakar<br/>
+        Tél : 77 123 45 67
+      </div>
+      <div class="fv-titre">
+        <div class="fv-mot">FACTURE</div>
+        N° A3F92C1B<br/>
+        Aujourd'hui, 14:32
+      </div>
     </div>
-    <div class="tv-ligne"><span>Riz local 5kg ×1</span><span class="m">3 750</span></div>
-    <div class="tv-ligne"><span>Eau minérale 1.5L ×2</span><span class="m">1 000</span></div>
-    <div class="tv-ligne"><span>Carte recharge 1000F ×1</span><span class="m">1 000</span></div>
-    <div class="tv-total">
+    <table class="fv-table">
+      <thead><tr><th>Désignation</th><th class="m">Qté</th><th class="m">Montant</th></tr></thead>
+      <tbody>
+        <tr><td>Riz local 5kg</td><td class="m">1</td><td class="m">3 750</td></tr>
+        <tr><td>Eau minérale 1.5L</td><td class="m">2</td><td class="m">1 000</td></tr>
+        <tr><td>Carte recharge 1000F</td><td class="m">1</td><td class="m">1 000</td></tr>
+      </tbody>
+    </table>
+    <div class="fv-total">
       <span class="label">Total</span>
       <span class="montant">5 750</span>
     </div>
@@ -223,7 +251,7 @@ footer { padding: 30px 20px 50px; text-align: center; color: var(--gris-texte); 
       <div class="carte-fonction">
         <div class="icone">🧾</div>
         <h3>Caisse</h3>
-        <p>Recherchez un article par nom ou code-barre, encaissez en Espèces, Wave, Orange Money ou Carte, imprimez le ticket.</p>
+        <p>Recherchez un article par nom ou code-barre, encaissez en Espèces, Wave, Orange Money ou Carte, imprimez la facture.</p>
       </div>
       <div class="carte-fonction">
         <div class="icone">📦</div>
