@@ -8,10 +8,11 @@
  * SQL utilisé jusqu'ici). C'est la pièce qui permet au produit de
  * passer à l'échelle commercialement.
  *
- * Corps attendu : { boutiqueId: string, nom: string }
+ * Corps attendu : { boutiqueId: string, nom: string, telephone?: string, adresse?: string }
  *  - boutiqueId : UUID déjà généré côté app (config.js), stable
  *    pour cet appareil/boutique.
  *  - nom : nom affiché de la boutique.
+ *  - telephone, adresse : optionnels, affichés sur les factures imprimées.
  *
  * Réponse : { apiKey: string } en cas de succès.
  *
@@ -39,7 +40,7 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ erreur: 'Méthode non autorisée.' });
   }
 
-  const { boutiqueId, nom } = req.body || {};
+  const { boutiqueId, nom, telephone, adresse } = req.body || {};
 
   if (!estUUIDValide(boutiqueId)) {
     return res.status(400).json({ erreur: 'boutiqueId invalide (UUID attendu).' });
@@ -48,10 +49,13 @@ module.exports = async function handler(req, res) {
   if (nomPropre.length < 2) {
     return res.status(400).json({ erreur: 'Le nom de la boutique doit contenir au moins 2 caractères.' });
   }
+  const telephonePropre = String(telephone || '').trim().slice(0, 40);
+  const adressePropre = String(adresse || '').trim().slice(0, 200);
 
   const supabase = obtenirClientSupabase();
 
-  // Idempotence : si la boutique existe déjà, on renvoie sa clé existante.
+  // Idempotence : si la boutique existe déjà, on renvoie sa clé existante
+  // (et on met à jour téléphone/adresse au passage, si fournis à nouveau).
   const { data: existante, error: erreurLecture } = await supabase
     .from('boutiques')
     .select('api_key, nom')
@@ -64,6 +68,12 @@ module.exports = async function handler(req, res) {
   }
 
   if (existante) {
+    if (telephonePropre || adressePropre) {
+      await supabase
+        .from('boutiques')
+        .update({ ...(telephonePropre ? { telephone: telephonePropre } : {}), ...(adressePropre ? { adresse: adressePropre } : {}) })
+        .eq('id', boutiqueId);
+    }
     return res.status(200).json({ apiKey: existante.api_key, nouveauCompte: false });
   }
 
@@ -71,7 +81,7 @@ module.exports = async function handler(req, res) {
 
   const { error: erreurInsertion } = await supabase
     .from('boutiques')
-    .insert({ id: boutiqueId, nom: nomPropre, api_key: apiKey });
+    .insert({ id: boutiqueId, nom: nomPropre, telephone: telephonePropre, adresse: adressePropre, api_key: apiKey });
 
   if (erreurInsertion) {
     console.error('[Register] Erreur insertion Supabase :', erreurInsertion.message);
