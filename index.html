@@ -27,6 +27,10 @@
       <p class="souscription-vue">Configurons votre boutique avant de commencer. Ces informations restent sur cet appareil.</p>
       <label for="onbNomBoutique">Nom de la boutique</label>
       <input type="text" id="onbNomBoutique" placeholder="Ex: Boutique Awa — Marché Sandaga" />
+      <label for="onbTelephone">Numéro de téléphone <span class="label-optionnel">(affiché sur les factures)</span></label>
+      <input type="tel" id="onbTelephone" placeholder="Ex: 77 123 45 67" />
+      <label for="onbAdresse">Adresse <span class="label-optionnel">(affichée sur les factures)</span></label>
+      <input type="text" id="onbAdresse" placeholder="Ex: Marché Sandaga, Dakar" />
       <label for="onbCode">Code d'accès de la caisse (4 chiffres)</label>
       <input type="password" id="onbCode" inputmode="numeric" maxlength="4" placeholder="••••" />
       <p class="souscription-vue" style="margin-top:4px; font-size:0.75rem;">Ce code sera demandé à chaque ouverture. Partagez-le avec toute l'équipe qui utilise cette caisse.</p>
@@ -269,9 +273,13 @@
       <h2 style="font-size:0.95rem; margin-top:0;">Boutique</h2>
       <label for="paramNomBoutique">Nom de la boutique</label>
       <input type="text" id="paramNomBoutique" />
+      <label for="paramTelephone">Numéro de téléphone <span class="label-optionnel">(affiché sur les factures)</span></label>
+      <input type="tel" id="paramTelephone" placeholder="Ex: 77 123 45 67" />
+      <label for="paramAdresse">Adresse <span class="label-optionnel">(affichée sur les factures)</span></label>
+      <input type="text" id="paramAdresse" placeholder="Ex: Marché Sandaga, Dakar" />
       <label>Identifiant de la boutique</label>
       <input type="text" id="paramBoutiqueId" readonly style="background:var(--papier); font-family:var(--font-num); font-size:0.75rem;" />
-      <button id="btnSauverParametresBoutique" class="btn btn-discret btn-pleine-largeur">Enregistrer le nom</button>
+      <button id="btnSauverParametresBoutique" class="btn btn-discret btn-pleine-largeur">Enregistrer les informations</button>
     </div>
 
     <div class="carte">
