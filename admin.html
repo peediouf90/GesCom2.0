@@ -86,6 +86,7 @@ td.num { font-family: var(--font-num); }
       <thead>
         <tr>
           <th>Boutique</th>
+          <th>Clé API</th>
           <th>Inscrite le</th>
           <th>Abonnement</th>
           <th>Échéance</th>
@@ -167,6 +168,12 @@ async function chargerTableauDeBord() {
         return `
         <tr>
           <td><strong>${echapper(b.nom)}</strong><br/><span style="font-family:var(--font-num); font-size:0.68rem; color:var(--gris-texte);">${b.id.slice(0, 8)}</span></td>
+          <td>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <code style="font-family:var(--font-num); font-size:0.7rem; background:var(--papier); padding:3px 6px; border-radius:5px;">${echapper(b.apiKey.slice(0, 10))}…</code>
+              <button class="btn btn-discret" data-copier="${echapper(b.apiKey)}" style="font-size:0.68rem; padding:4px 8px;" title="Copier la clé complète">📋</button>
+            </div>
+          </td>
           <td>${formaterDate(b.creeLe)}</td>
           <td><span class="tag ${statut.classe}">${statut.texte}</span></td>
           <td>${formaterDate(b.abonnementExpireLe)}</td>
@@ -189,6 +196,19 @@ async function chargerTableauDeBord() {
       .join('');
 
     document.getElementById('tableBoutiques').style.display = 'table';
+
+    corps.querySelectorAll('[data-copier]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(btn.dataset.copier);
+          const texteOriginal = btn.textContent;
+          btn.textContent = '✅';
+          setTimeout(() => (btn.textContent = texteOriginal), 1200);
+        } catch (err) {
+          alert('Clé : ' + btn.dataset.copier); // repli si le presse-papier est indisponible
+        }
+      });
+    });
 
     corps.querySelectorAll('[data-action]').forEach((btn) => {
       btn.addEventListener('click', async () => {
