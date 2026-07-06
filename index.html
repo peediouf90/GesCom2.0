@@ -36,10 +36,11 @@
 
     <div id="blocConnexionExistante" style="display:none;">
       <h1 class="titre-vue">Retrouver ma boutique</h1>
-      <p class="souscription-vue">Utilisez la clé API de synchronisation de votre boutique (visible dans Paramètres sur votre autre appareil) pour tout récupérer ici : produits, historique de ventes, abonnement.</p>
-      <label for="connCleApi">Clé API de synchronisation</label>
-      <input type="text" id="connCleApi" placeholder="Collez votre clé API ici" />
-      <label for="connCode">Nouveau code d'accès pour cet appareil (4 chiffres)</label>
+      <p class="souscription-vue">Entrez le <strong>code de connexion boutique</strong> — un identifiant unique et sécurisé (différent de votre code d'accès à 4 chiffres) que vous trouverez sur votre autre appareil, dans l'onglet <strong>Paramètres → Synchronisation</strong>.</p>
+      <label for="connCleApi">Identifiant de récupération</label>
+      <input type="text" id="connCleApi" placeholder="Collez le code trouvé dans Paramètres" />
+      <p class="souscription-vue" style="margin-top:2px; font-size:0.72rem;">💡 Pourquoi pas juste le nom de la boutique ? Plusieurs commerces peuvent porter le même nom — ce code unique garantit qu'on récupère bien <em>vos</em> données, et pas celles d'un autre commerçant.</p>
+      <label for="connCode" style="margin-top:14px;">Nouveau code d'accès pour CET appareil (4 chiffres)</label>
       <input type="password" id="connCode" inputmode="numeric" maxlength="4" placeholder="••••" />
       <button id="btnConnecterBoutiqueExistante" class="btn btn-principal btn-pleine-largeur">Se connecter et tout récupérer</button>
       <button id="btnRetourNouvelleBoutique" class="btn btn-discret btn-pleine-largeur" style="margin-top:10px;">← Retour</button>
@@ -279,8 +280,8 @@
       <button id="btnActiverSync" class="btn btn-principal btn-pleine-largeur">☁️ Activer la synchronisation</button>
       <button id="btnPayerAbonnement" class="btn btn-principal btn-pleine-largeur" style="display:none; margin-top:10px; background:var(--vert); color:#fff;">💳 Payer / renouveler mon abonnement</button>
       <details style="margin-top:12px;">
-        <summary style="cursor:pointer; font-size:0.78rem; color:var(--gris-texte);">Options avancées (clé API manuelle)</summary>
-        <label for="paramCleApi" style="margin-top:10px;">Clé API de synchronisation</label>
+        <summary style="cursor:pointer; font-size:0.78rem; color:var(--gris-texte);">Options avancées (identifiant de récupération)</summary>
+        <label for="paramCleApi" style="margin-top:10px;">Identifiant de récupération</label>
         <input type="text" id="paramCleApi" placeholder="Laisser vide si vous utilisez le bouton ci-dessus" />
         <button id="btnSauverCleApiManuelle" class="btn btn-discret btn-pleine-largeur" style="margin-top:8px;">Enregistrer cette clé</button>
       </details>
