@@ -812,6 +812,35 @@ document.getElementById('btnChangerCodeAcces').addEventListener('click', async (
   }
 });
 
+// ---- Déconnexion complète de l'appareil (zone dangereuse) ----
+document.getElementById('btnDeconnecterAppareil').addEventListener('click', async () => {
+  const config = obtenirConfigBoutique();
+  const syncActive = config && config.cleApiSync;
+
+  const messageAvertissement = syncActive
+    ? `Déconnecter "${config.nom}" de cet appareil ?\n\nVos données sont déjà sauvegardées en ligne (synchronisation active) — vous pourrez les récupérer avec le bouton "J'ai déjà une boutique" sur n'importe quel appareil.\n\nCet appareil reviendra à l'écran de bienvenue.`
+    : `⚠️ ATTENTION : la synchronisation n'est PAS activée pour "${config ? config.nom : 'cette boutique'}".\n\nDéconnecter maintenant EFFACERA DÉFINITIVEMENT toutes les données stockées uniquement sur cet appareil (produits, ventes, historique) — elles ne sont sauvegardées nulle part ailleurs.\n\nÊtes-vous VRAIMENT sûr de vouloir continuer ?`;
+
+  if (!confirm(messageAvertissement)) return;
+
+  // Double confirmation si aucune sauvegarde en ligne n'existe (perte de données réelle)
+  if (!syncActive && !confirm('Dernière confirmation : toutes les données locales seront perdues. Continuer ?')) {
+    return;
+  }
+
+  try {
+    await db.delete(); // supprime entièrement la base IndexedDB locale (produits, ventes, stocksLog)
+  } catch (err) {
+    console.error('[Déconnexion] Erreur lors de la suppression de la base locale :', err);
+  }
+
+  localStorage.clear();
+  sessionStorage.clear();
+
+  afficherToast('Appareil déconnecté. Rechargement…', 'succes');
+  setTimeout(() => window.location.reload(), 800);
+});
+
 // =================================================================
 //  ACCÈS : configuration initiale + verrouillage / déverrouillage
 // =================================================================
