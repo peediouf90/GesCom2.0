@@ -22,14 +22,28 @@
 <!-- ===================== ÉCRAN 1 : CONFIGURATION DE LA BOUTIQUE (1ère utilisation) ===================== -->
 <div id="ecranOnboarding" class="ecran-plein">
   <div class="carte-ecran-plein">
-    <h1 class="titre-vue">Bienvenue 👋</h1>
-    <p class="souscription-vue">Configurons votre boutique avant de commencer. Ces informations restent sur cet appareil.</p>
-    <label for="onbNomBoutique">Nom de la boutique</label>
-    <input type="text" id="onbNomBoutique" placeholder="Ex: Boutique Awa — Marché Sandaga" />
-    <label for="onbCode">Code d'accès de la caisse (4 chiffres)</label>
-    <input type="password" id="onbCode" inputmode="numeric" maxlength="4" placeholder="••••" />
-    <p class="souscription-vue" style="margin-top:4px; font-size:0.75rem;">Ce code sera demandé à chaque ouverture. Partagez-le avec toute l'équipe qui utilise cette caisse.</p>
-    <button id="btnValiderOnboarding" class="btn btn-principal btn-pleine-largeur">Démarrer</button>
+    <div id="blocNouvelleBoutique">
+      <h1 class="titre-vue">Bienvenue 👋</h1>
+      <p class="souscription-vue">Configurons votre boutique avant de commencer. Ces informations restent sur cet appareil.</p>
+      <label for="onbNomBoutique">Nom de la boutique</label>
+      <input type="text" id="onbNomBoutique" placeholder="Ex: Boutique Awa — Marché Sandaga" />
+      <label for="onbCode">Code d'accès de la caisse (4 chiffres)</label>
+      <input type="password" id="onbCode" inputmode="numeric" maxlength="4" placeholder="••••" />
+      <p class="souscription-vue" style="margin-top:4px; font-size:0.75rem;">Ce code sera demandé à chaque ouverture. Partagez-le avec toute l'équipe qui utilise cette caisse.</p>
+      <button id="btnValiderOnboarding" class="btn btn-principal btn-pleine-largeur">Démarrer</button>
+      <button id="btnAfficherConnexionExistante" class="btn btn-discret btn-pleine-largeur" style="margin-top:10px;">J'ai déjà une boutique →</button>
+    </div>
+
+    <div id="blocConnexionExistante" style="display:none;">
+      <h1 class="titre-vue">Retrouver ma boutique</h1>
+      <p class="souscription-vue">Utilisez la clé API de synchronisation de votre boutique (visible dans Paramètres sur votre autre appareil) pour tout récupérer ici : produits, historique de ventes, abonnement.</p>
+      <label for="connCleApi">Clé API de synchronisation</label>
+      <input type="text" id="connCleApi" placeholder="Collez votre clé API ici" />
+      <label for="connCode">Nouveau code d'accès pour cet appareil (4 chiffres)</label>
+      <input type="password" id="connCode" inputmode="numeric" maxlength="4" placeholder="••••" />
+      <button id="btnConnecterBoutiqueExistante" class="btn btn-principal btn-pleine-largeur">Se connecter et tout récupérer</button>
+      <button id="btnRetourNouvelleBoutique" class="btn btn-discret btn-pleine-largeur" style="margin-top:10px;">← Retour</button>
+    </div>
   </div>
 </div>
 
