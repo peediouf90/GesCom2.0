@@ -48,3 +48,16 @@ function definirConfigBoutique(donnees) {
 function boutiqueEstConfiguree() {
   return obtenirConfigBoutique() !== null;
 }
+
+/**
+ * Rattache CET appareil à une boutique EXISTANTE (identifiant réel venant du
+ * serveur), contrairement à definirConfigBoutique() qui en génère un nouveau.
+ * Utilisé quand un commerçant installe l'app sur un nouvel appareil et se
+ * connecte avec la clé API d'une boutique déjà enregistrée.
+ */
+function connecterBoutiqueExistante({ id, nom, cleApiSync }) {
+  const config = { id, nom, cleApiSync, dateConfiguration: new Date().toISOString() };
+  localStorage.setItem(CLE_STOCKAGE_BOUTIQUE, JSON.stringify(config));
+  console.log('[Config] Appareil connecté à la boutique existante :', nom, '(id:', id, ')');
+  return config;
+}
