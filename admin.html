@@ -77,6 +77,7 @@ td.num { font-family: var(--font-num); }
 
   <div class="enveloppe">
     <div class="grille-stats" id="grilleStats"></div>
+    <p id="erreurAction" style="display:none; background:rgba(192,57,43,0.1); color:var(--rouge); padding:10px 14px; border-radius:8px; font-size:0.85rem; margin-bottom:14px;"></p>
 
     <div id="chargement">Chargement des boutiques…</div>
     <div id="vide" style="display:none;">Aucune boutique enregistrée pour le moment.</div>
@@ -177,9 +178,10 @@ async function chargerTableauDeBord() {
               <button class="btn btn-principal" data-action="marquer_paye" data-id="${b.id}">Marquer payé (+30j)</button>
               ${
                 b.abonnementStatut === 'suspendu'
-                  ? `<button class="btn btn-discret" data-action="reactiver" data-id="${b.id}">Réactiver</button>`
+                  ? `<button class="btn btn-discret" data-action="activer" data-id="${b.id}">Activer</button>`
                   : `<button class="btn btn-danger" data-action="suspendre" data-id="${b.id}">Suspendre</button>`
               }
+              <button class="btn btn-danger" data-action="supprimer" data-id="${b.id}" data-nom="${echapper(b.nom)}" style="background:#7a0d0d;">🗑 Supprimer</button>
             </div>
           </td>
         </tr>`;
@@ -190,12 +192,28 @@ async function chargerTableauDeBord() {
 
     corps.querySelectorAll('[data-action]').forEach((btn) => {
       btn.addEventListener('click', async () => {
+        const erreurEl = document.getElementById('erreurAction');
+        erreurEl.style.display = 'none';
+
+        if (btn.dataset.action === 'supprimer') {
+          const confirmation = confirm(
+            `Supprimer définitivement "${btn.dataset.nom}" ?\n\nCeci effacera aussi TOUS ses produits, ventes et mouvements de stock. Cette action est IRRÉVERSIBLE.`
+          );
+          if (!confirmation) return;
+        }
+
         btn.disabled = true;
         try {
-          await appelApi('PATCH', { boutiqueId: btn.dataset.id, action: btn.dataset.action });
+          if (btn.dataset.action === 'supprimer') {
+            await appelApi('DELETE', { boutiqueId: btn.dataset.id });
+          } else {
+            await appelApi('PATCH', { boutiqueId: btn.dataset.id, action: btn.dataset.action });
+          }
           chargerTableauDeBord();
         } catch (err) {
-          alert('Erreur : ' + err.message);
+          console.error('[Admin] Échec action', btn.dataset.action, ':', err);
+          erreurEl.textContent = `Échec de l'action "${btn.dataset.action}" : ${err.message}`;
+          erreurEl.style.display = 'block';
           btn.disabled = false;
         }
       });
