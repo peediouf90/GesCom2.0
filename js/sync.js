@@ -157,6 +157,49 @@ async function compterElementsEnAttente() {
   return p + v + s;
 }
 
+// ---- Récupération initiale (pull) pour un appareil qui rejoint une boutique existante ----
+
+/**
+ * Télécharge l'intégralité des données d'une boutique depuis le serveur et
+ * les insère en local (statutSync forcé à 'synced', puisqu'elles viennent
+ * déjà du serveur). Utilisé UNIQUEMENT lors de la connexion d'un nouvel
+ * appareil à une boutique existante — jamais en usage normal, où seule la
+ * caisse locale fait foi et où l'on ne fait que POUSSER les changements.
+ *
+ * @param {string} cleApi - clé API de la boutique à rapatrier
+ * @returns {Promise<{produits: number, ventes: number, stocksLog: number}>}
+ */
+async function recupererDonneesDistantes(cleApi) {
+  const tables = [
+    { nom: 'produits', table: db.produits },
+    { nom: 'ventes', table: db.ventes },
+    { nom: 'stocksLog', table: db.stocksLog }
+  ];
+
+  const compteurs = {};
+
+  for (const { nom, table } of tables) {
+    const reponse = await fetch(`${CONFIG_SYNC.urlApi}/sync/${nom}`, {
+      headers: { 'X-API-Key': cleApi }
+    });
+
+    if (!reponse.ok) {
+      throw new Error(`Échec de récupération de "${nom}" (${reponse.status})`);
+    }
+
+    const { elements } = await reponse.json();
+    const elementsSynchronises = elements.map((e) => ({ ...e, statutSync: 'synced' }));
+
+    if (elementsSynchronises.length > 0) {
+      await table.bulkPut(elementsSynchronises);
+    }
+    compteurs[nom] = elementsSynchronises.length;
+    console.log(`[Sync] Récupération initiale — "${nom}" : ${elementsSynchronises.length} élément(s) rapatrié(s).`);
+  }
+
+  return compteurs;
+}
+
 // ---- Network listener --------------------------------------------
 
 /** Initialise l'écoute des changements d'état réseau. À appeler une fois au démarrage. */
