@@ -503,24 +503,102 @@ tr.alerte-stock td { background: rgba(192, 57, 43, 0.06); }
 #toast.erreur { background: var(--rouge); }
 #toast.succes { background: var(--vert); }
 
-/* ---------- Impression du ticket (facturation) ---------- */
+/* ---------- Impression de la facture (format A4) ---------- */
 .zone-impression { display: none; }
 
 @media print {
+  @page {
+    size: A4;
+    margin: 18mm;
+  }
+
   body * { visibility: hidden; }
   .zone-impression, .zone-impression * { visibility: visible; }
   .zone-impression {
     display: block;
     position: absolute;
     top: 0; left: 0;
-    width: 78mm;
-    font-family: var(--font-num);
-    font-size: 12px;
+    width: 100%;
+    font-family: var(--font-ui);
     color: #000;
   }
-  .ticket-imp .entete-imp { text-align: center; margin-bottom: 6px; }
-  .ticket-imp hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }
-  .ticket-imp .ligne-imp { display: flex; justify-content: space-between; padding: 2px 0; }
-  .ticket-imp .total-imp { font-weight: bold; font-size: 14px; }
-  .ticket-imp .pied-imp { text-align: center; margin-top: 10px; font-style: italic; }
+
+  .facture-a4 { width: 100%; }
+
+  .entete-facture {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 2px solid #000;
+    padding-bottom: 14px;
+    margin-bottom: 20px;
+  }
+
+  .coordonnees-boutique {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .nom-boutique-facture {
+    font-size: 18px;
+    font-weight: 800;
+    margin-bottom: 4px;
+  }
+
+  .titre-facture {
+    text-align: right;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .mot-facture {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    margin-bottom: 4px;
+  }
+
+  .table-facture {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-bottom: 24px;
+  }
+  .table-facture th {
+    text-align: left;
+    border-bottom: 2px solid #000;
+    padding: 6px 4px;
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+  .table-facture td {
+    padding: 7px 4px;
+    border-bottom: 1px solid #ccc;
+  }
+  .table-facture .centre { text-align: center; }
+  .table-facture .chiffre { text-align: right; font-family: var(--font-num); }
+
+  .bloc-total-facture {
+    width: 260px;
+    margin-left: auto;
+    font-size: 13px;
+  }
+  .ligne-total-facture {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+  }
+  .total-final-facture {
+    border-top: 2px solid #000;
+    margin-top: 6px;
+    padding-top: 8px;
+    font-size: 16px;
+    font-weight: 800;
+  }
+
+  .pied-facture {
+    text-align: center;
+    margin-top: 50px;
+    font-style: italic;
+    font-size: 12px;
+    color: #444;
+  }
 }
