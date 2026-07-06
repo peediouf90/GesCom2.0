@@ -115,7 +115,12 @@ module.exports = async function handler(req, res) {
     }
 
     console.log(`[Admin] Boutique ${boutiqueId} — action "${action}" appliquée.`);
-    return res.status(200).json({ succes: true });
+    return res.status(200).json({
+      succes: true,
+      action,
+      nouveauStatut: miseAJour.abonnement_statut,
+      nouvelleEcheance: miseAJour.abonnement_expire_le || null
+    });
   }
 
   if (req.method === 'DELETE') {
