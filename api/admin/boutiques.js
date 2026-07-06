@@ -86,7 +86,7 @@ module.exports = async function handler(req, res) {
     let miseAJour;
     const maintenant = new Date();
 
-    if (action === 'marquer_paye' || action === 'reactiver') {
+    if (action === 'marquer_paye') {
       const expiration = new Date(maintenant);
       expiration.setDate(expiration.getDate() + 30);
       miseAJour = {
@@ -95,6 +95,11 @@ module.exports = async function handler(req, res) {
         date_dernier_paiement: maintenant.toISOString(),
         ...(montant ? { montant_dernier_paiement: montant } : {})
       };
+    } else if (action === 'activer' || action === 'reactiver') {
+      // Lève une suspension SANS modifier l'échéance existante (contrairement à
+      // "marquer_paye" qui prolonge de 30 jours) — utile pour corriger une
+      // suspension faite par erreur, sans fausser la date de facturation.
+      miseAJour = { abonnement_statut: 'actif' };
     } else if (action === 'suspendre') {
       miseAJour = { abonnement_statut: 'suspendu' };
     } else {
@@ -112,6 +117,27 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({ succes: true });
   }
 
-  res.setHeader('Allow', 'GET, PATCH');
+  if (req.method === 'DELETE') {
+    const { boutiqueId } = req.body || {};
+
+    if (!boutiqueId) {
+      return res.status(400).json({ erreur: 'boutiqueId est requis.' });
+    }
+
+    // Supprime la boutique ET toutes ses données associées (produits, ventes,
+    // stocksLog) grâce à "on delete cascade" défini sur les clés étrangères
+    // en base — une seule suppression suffit, pas besoin de nettoyer chaque table.
+    const { error } = await supabase.from('boutiques').delete().eq('id', boutiqueId);
+
+    if (error) {
+      console.error('[Admin] Erreur suppression boutique :', error.message);
+      return res.status(500).json({ erreur: 'Erreur serveur.' });
+    }
+
+    console.log(`[Admin] Boutique ${boutiqueId} — supprimée définitivement.`);
+    return res.status(200).json({ succes: true });
+  }
+
+  res.setHeader('Allow', 'GET, PATCH, DELETE');
   return res.status(405).json({ erreur: 'Méthode non autorisée.' });
 };
