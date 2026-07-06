@@ -129,6 +129,28 @@ section { padding: 64px 20px; }
 .titre-section { font-size: clamp(1.5rem, 2.6vw, 2rem); letter-spacing: -0.01em; margin: 0 0 12px; }
 .souscription-section { color: var(--gris-texte); max-width: 60ch; margin: 0 0 40px; line-height: 1.55; }
 
+/* ---- Tarifs ---- */
+.grille-tarifs { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); gap: 22px; max-width: 780px; }
+.carte-tarif {
+  background: var(--papier-carte); border-radius: 14px; padding: 30px 26px;
+  box-shadow: 0 2px 10px rgba(22,33,58,0.06);
+  border: 1.5px solid var(--gris-ligne);
+  position: relative;
+}
+.carte-tarif.recommande { border-color: var(--ambre); box-shadow: 0 10px 30px rgba(232,149,47,0.18); }
+.badge-tarif {
+  position: absolute; top: -13px; right: 24px;
+  background: var(--ambre); color: var(--encre); font-size: 0.68rem; font-weight: 800;
+  padding: 5px 12px; border-radius: 20px; letter-spacing: 0.03em;
+}
+.carte-tarif .nom-formule { font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--gris-texte); margin-bottom: 10px; }
+.carte-tarif .prix-formule { font-family: var(--font-num); font-size: 2.1rem; font-weight: 800; color: var(--encre); }
+.carte-tarif .prix-formule span { font-size: 0.9rem; font-weight: 600; color: var(--gris-texte); }
+.carte-tarif .note-formule { font-size: 0.82rem; color: var(--vert); font-weight: 700; margin-top: 6px; }
+.carte-tarif .engagement-formule { font-size: 0.8rem; color: var(--gris-texte); margin-top: 10px; }
+.contact-tarifs { margin-top: 34px; padding: 22px 26px; background: rgba(232,149,47,0.08); border-radius: 12px; max-width: 780px; }
+.contact-tarifs p { margin: 0; font-size: 0.95rem; }
+
 /* ---- Problème ---- */
 .bande-probleme { background: var(--encre); color: #fff; }
 .bande-probleme .titre-section { color: #fff; }
@@ -268,6 +290,33 @@ footer { padding: 30px 20px 50px; text-align: center; color: var(--gris-texte); 
         <h3>Accès protégé</h3>
         <p>Un code à 4 chiffres partagé par toute l'équipe. Simple à retenir, suffisant pour éviter les manipulations non désirées.</p>
       </div>
+    </div>
+  </div>
+</section>
+
+<section id="tarifs">
+  <div class="enveloppe">
+    <h2 class="titre-section">📈 Profitez de nos tarifs de lancement</h2>
+    <p class="souscription-section">Deux formules simples, sans frais caché.</p>
+
+    <div class="grille-tarifs">
+      <div class="carte-tarif">
+        <div class="nom-formule">Formule Mensuelle</div>
+        <div class="prix-formule">5 000 <span>FCFA / mois</span></div>
+        <div class="engagement-formule">Sans engagement</div>
+      </div>
+      <div class="carte-tarif recommande">
+        <span class="badge-tarif">2 MOIS OFFERTS</span>
+        <div class="nom-formule">Formule Annuelle</div>
+        <div class="prix-formule">45 000 <span>FCFA / an</span></div>
+        <div class="note-formule">Soit 2 mois offerts !</div>
+      </div>
+    </div>
+
+    <div class="contact-tarifs">
+      <p><strong>Besoin d'une démonstration ou de tester gratuitement ?</strong><br/>
+      Contactez-nous directement sur WhatsApp — on vous répond rapidement.</p>
+      <a href="https://wa.me/221763875858" class="btn btn-principal" style="margin-top:16px;">💬 Discuter sur WhatsApp</a>
     </div>
   </div>
 </section>
