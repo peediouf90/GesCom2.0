@@ -1,990 +1,373 @@
-/**
- * =============================================================
- *  app.js — Contrôleur d'interface (navigation + rendu des vues)
- * =============================================================
- * Ce fichier ne contient AUCUNE logique métier : il appelle
- * uniquement les fonctions exposées par produits.js, ventes.js,
- * stock.js, kpi.js et sync.js, puis met à jour le DOM.
- */
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#16213a" />
+<title>GesCom2.0 — Caisse &amp; Stock Hors-Ligne</title>
+<meta name="description" content="Application de caisse, stock et facturation 100% hors-ligne pour commerçants de détail." />
 
-// ---- État en mémoire du ticket de caisse en cours ----
-let panierCourant = []; // [{ produitId, nom, prixUnitaire, prixAchatUnitaire, quantite }]
-let modePaiementSelectionne = 'Espèces';
+<!-- PWA -->
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
 
-// ---- Utilitaires génériques -----------------------------------
+<link rel="stylesheet" href="css/style.css" />
 
-function formaterMontant(nombre) {
-  return Math.round(nombre).toLocaleString('fr-FR');
-}
+<!-- Dexie.js : wrapper IndexedDB robuste (mis en cache par le service worker) -->
+<script src="https://unpkg.com/dexie@3/dist/dexie.js"></script>
+</head>
+<body>
 
-function afficherToast(message, type = '') {
-  const toast = document.getElementById('toast');
-  toast.textContent = message;
-  toast.className = type;
-  toast.classList.add('visible');
-  clearTimeout(afficherToast._timer);
-  afficherToast._timer = setTimeout(() => toast.classList.remove('visible'), 2600);
-}
+<!-- ===================== ÉCRAN 1 : CONFIGURATION DE LA BOUTIQUE (1ère utilisation) ===================== -->
+<div id="ecranOnboarding" class="ecran-plein">
+  <div class="carte-ecran-plein">
+    <div id="blocNouvelleBoutique">
+      <h1 class="titre-vue">Bienvenue 👋</h1>
+      <p class="souscription-vue">Configurons votre boutique avant de commencer. Ces informations restent sur cet appareil.</p>
+      <label for="onbNomBoutique">Nom de la boutique</label>
+      <input type="text" id="onbNomBoutique" placeholder="Ex: Boutique Awa — Marché Sandaga" />
+      <label for="onbCode">Code d'accès de la caisse (4 chiffres)</label>
+      <input type="password" id="onbCode" inputmode="numeric" maxlength="4" placeholder="••••" />
+      <p class="souscription-vue" style="margin-top:4px; font-size:0.75rem;">Ce code sera demandé à chaque ouverture. Partagez-le avec toute l'équipe qui utilise cette caisse.</p>
+      <button id="btnValiderOnboarding" class="btn btn-principal btn-pleine-largeur">Démarrer</button>
+      <button id="btnAfficherConnexionExistante" class="btn btn-discret btn-pleine-largeur" style="margin-top:10px;">J'ai déjà une boutique →</button>
+    </div>
 
-// ---- Navigation entre les vues ---------------------------------
+    <div id="blocConnexionExistante" style="display:none;">
+      <h1 class="titre-vue">Retrouver ma boutique</h1>
+      <p class="souscription-vue">Utilisez la clé API de synchronisation de votre boutique (visible dans Paramètres sur votre autre appareil) pour tout récupérer ici : produits, historique de ventes, abonnement.</p>
+      <label for="connCleApi">Clé API de synchronisation</label>
+      <input type="text" id="connCleApi" placeholder="Collez votre clé API ici" />
+      <label for="connCode">Nouveau code d'accès pour cet appareil (4 chiffres)</label>
+      <input type="password" id="connCode" inputmode="numeric" maxlength="4" placeholder="••••" />
+      <button id="btnConnecterBoutiqueExistante" class="btn btn-principal btn-pleine-largeur">Se connecter et tout récupérer</button>
+      <button id="btnRetourNouvelleBoutique" class="btn btn-discret btn-pleine-largeur" style="margin-top:10px;">← Retour</button>
+    </div>
+  </div>
+</div>
 
-function activerVue(nomVue) {
-  document.querySelectorAll('.vue').forEach((v) => v.classList.remove('actif'));
-  document.querySelectorAll('.app-nav button').forEach((b) => b.classList.remove('actif'));
+<!-- ===================== ÉCRAN 2 : CODE D'ACCÈS (partagé par toute l'équipe) ===================== -->
+<div id="ecranDeverrouillage" class="ecran-plein">
+  <div class="carte-ecran-plein">
+    <h1 class="titre-vue" id="titreBoutiqueDeverrouillage">GesCom2.0</h1>
+    <p class="souscription-vue">Entrez le code d'accès de la caisse.</p>
+    <div id="pinAffichage" class="pin-affichage">
+      <span></span><span></span><span></span><span></span>
+    </div>
+    <div class="pin-pad" id="pinPad">
+      <button data-chiffre="1">1</button><button data-chiffre="2">2</button><button data-chiffre="3">3</button>
+      <button data-chiffre="4">4</button><button data-chiffre="5">5</button><button data-chiffre="6">6</button>
+      <button data-chiffre="7">7</button><button data-chiffre="8">8</button><button data-chiffre="9">9</button>
+      <span></span><button data-chiffre="0">0</button><button id="btnEffacerPin" class="discret">⌫</button>
+    </div>
+  </div>
+</div>
 
-  document.getElementById(`vue-${nomVue}`).classList.add('actif');
-  document.querySelector(`.app-nav button[data-vue="${nomVue}"]`).classList.add('actif');
+<header class="app-header">
+  <div class="marque">
+    <span class="logo">GesCom<span>2.0</span></span>
+    <span class="sous-titre" id="nomBoutiqueHeader">Caisse hors-ligne</span>
+  </div>
+  <div class="statut-reseau">
+    <span id="badgeAttente" class="badge-attente" style="display:none;">0 en attente</span>
+    <span id="pastilleReseau" class="pastille" title="En ligne"></span>
+    <span id="texteReseau">En ligne</span>
+    <span class="separateur-header">|</span>
+    <button id="btnVerrouiller" class="btn btn-discret btn-mini">🔒 Verrouiller</button>
+  </div>
+</header>
 
-  // Rafraîchit les données de la vue à chaque ouverture
-  if (nomVue === 'caisse') rendreCatalogueCaisse();
-  if (nomVue === 'produits') rendreTableProduits();
-  if (nomVue === 'stock') { remplirSelectProduitsStock(); rendreTableStock(); }
-  if (nomVue === 'kpi') rendreKpi();
-  if (nomVue === 'parametres') rendreParametres();
-}
+<div id="banniereAbonnement" class="banniere-abonnement" style="display:none;"></div>
 
-document.querySelectorAll('.app-nav button').forEach((btn) => {
-  btn.addEventListener('click', () => activerVue(btn.dataset.vue));
-});
+<!-- ===================== NAVIGATION ===================== -->
+<nav class="app-nav">
+  <button data-vue="caisse" class="actif">🧾 Caisse</button>
+  <button data-vue="produits">📦 Produits</button>
+  <button data-vue="stock">🔁 Mouvements de stock</button>
+  <button data-vue="kpi">📊 Performance</button>
+  <button data-vue="parametres">⚙️ Paramètres</button>
+</nav>
 
-// =================================================================
-//  VUE CAISSE (POS)
-// =================================================================
 
-async function rendreCatalogueCaisse(filtre = '') {
-  const conteneur = document.getElementById('listeCatalogueCaisse');
-  let produits = await listerProduits();
+<main>
 
-  if (filtre.trim() !== '') {
-    const f = filtre.toLowerCase();
-    produits = produits.filter(
-      (p) => p.nom.toLowerCase().includes(f) || (p.codeBarre || '').includes(f)
-    );
-  }
+  <!-- ===================== VUE CAISSE (POS) ===================== -->
+  <section id="vue-caisse" class="vue actif">
+    <h1 class="titre-vue">Caisse</h1>
+    <p class="souscription-vue">Recherchez un article, ajoutez-le au ticket, puis encaissez.</p>
 
-  if (produits.length === 0) {
-    conteneur.innerHTML = '<p class="info-vide">Aucun produit trouvé.</p>';
-    return;
-  }
-
-  conteneur.innerHTML = produits
-    .map((p) => {
-      const aDesTarifsAlternatifs = p.prixGros != null || p.prixDemiGros != null;
-      const optionsTarif = [
-        `<option value="detail">Détail — ${formaterMontant(p.prixVente)}</option>`,
-        p.prixDemiGros != null ? `<option value="demiGros">Demi-gros — ${formaterMontant(p.prixDemiGros)}</option>` : '',
-        p.prixGros != null ? `<option value="gros">Gros — ${formaterMontant(p.prixGros)}</option>` : ''
-      ].join('');
-
-      return `
-    <div class="item-catalogue" data-id="${p.id}">
-      <div class="infos-item-catalogue">
-        <div class="nom">${echapper(p.nom)}</div>
-        <div class="meta">Stock: ${p.stockActuel} ${p.stockActuel <= p.stockAlerte ? '⚠️' : ''}</div>
-        ${aDesTarifsAlternatifs ? `<select class="tarif-catalogue" data-id="${p.id}">${optionsTarif}</select>` : ''}
+    <div class="pos-layout">
+      <!-- Colonne catalogue -->
+      <div class="carte recherche-produit">
+        <input type="text" id="rechercheCaisse" placeholder="🔍 Rechercher par nom ou code-barre…" autocomplete="off" />
+        <div id="listeCatalogueCaisse" class="liste-catalogue"></div>
       </div>
-      <div class="prix">${formaterMontant(p.prixVente)}</div>
-      <input type="number" class="qte-catalogue" data-id="${p.id}" min="1" step="1" value="1" title="Quantité à ajouter" />
-      <button class="btn-ajouter-catalogue" data-id="${p.id}" title="Ajouter au ticket">+</button>
-    </div>`;
-    })
-    .join('');
 
-  function tarifSelectionne(produitId) {
-    const select = conteneur.querySelector(`.tarif-catalogue[data-id="${produitId}"]`);
-    return select ? select.value : 'detail';
-  }
-
-  // Clic sur la ligne (hors champ quantité, sélecteur et bouton) : ajoute 1 unité rapidement, comme avant
-  conteneur.querySelectorAll('.item-catalogue').forEach((el) => {
-    el.addEventListener('click', (e) => {
-      if (e.target.closest('.qte-catalogue') || e.target.closest('.btn-ajouter-catalogue') || e.target.closest('.tarif-catalogue')) return;
-      ajouterAuPanier(el.dataset.id, 1, tarifSelectionne(el.dataset.id));
-    });
-  });
-
-  // Bouton "+" : ajoute la quantité saisie dans le champ voisin, au tarif sélectionné
-  conteneur.querySelectorAll('.btn-ajouter-catalogue').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const champQte = conteneur.querySelector(`.qte-catalogue[data-id="${btn.dataset.id}"]`);
-      const quantite = Math.max(1, parseInt(champQte.value, 10) || 1);
-      ajouterAuPanier(btn.dataset.id, quantite, tarifSelectionne(btn.dataset.id));
-      champQte.value = 1; // réinitialise pour le prochain ajout
-    });
-  });
-
-  // Empêche le clic dans le champ quantité de déclencher l'ajout de 1, et valide sur "Entrée"
-  conteneur.querySelectorAll('.qte-catalogue').forEach((champ) => {
-    champ.addEventListener('click', (e) => e.stopPropagation());
-    champ.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const quantite = Math.max(1, parseInt(champ.value, 10) || 1);
-        ajouterAuPanier(champ.dataset.id, quantite, tarifSelectionne(champ.dataset.id));
-        champ.value = 1;
-      }
-    });
-  });
-}
-
-async function ajouterAuPanier(produitId, quantiteAjoutee = 1, tarif = 'detail') {
-  const produit = await db.produits.get(produitId);
-  if (!produit) return;
-
-  if (produit.stockActuel <= 0) {
-    afficherToast(`Stock épuisé pour "${produit.nom}"`, 'erreur');
-    return;
-  }
-
-  // Le stock est partagé entre tous les tarifs : on cumule la quantité déjà
-  // présente dans le ticket pour ce produit, tous tarifs confondus.
-  const quantiteDejaDansLePanier = panierCourant
-    .filter((l) => l.produitId === produitId)
-    .reduce((s, l) => s + l.quantite, 0);
-  const quantiteMaxAjoutable = produit.stockActuel - quantiteDejaDansLePanier;
-
-  if (quantiteMaxAjoutable <= 0) {
-    afficherToast('Quantité maximale disponible atteinte', 'erreur');
-    return;
-  }
-
-  const quantiteReellementAjoutee = Math.min(quantiteAjoutee, quantiteMaxAjoutable);
-  if (quantiteReellementAjoutee < quantiteAjoutee) {
-    afficherToast(`Seulement ${quantiteReellementAjoutee} unité(s) disponible(s) en stock, ajoutées.`, 'erreur');
-  }
-
-  // Prix appliqué selon le tarif choisi (repli sur le prix détail si le tarif
-  // demandé n'a pas de prix défini pour ce produit).
-  let prixUnitaire = produit.prixVente;
-  if (tarif === 'gros' && produit.prixGros != null) prixUnitaire = produit.prixGros;
-  else if (tarif === 'demiGros' && produit.prixDemiGros != null) prixUnitaire = produit.prixDemiGros;
-
-  // Une ligne de ticket distincte par (produit + tarif), pour ne jamais
-  // mélanger des unités vendues à des prix différents dans une même ligne.
-  const ligneExistante = panierCourant.find((l) => l.produitId === produitId && l.tarif === tarif);
-
-  if (ligneExistante) {
-    ligneExistante.quantite += quantiteReellementAjoutee;
-  } else {
-    panierCourant.push({
-      produitId: produit.id,
-      nom: produit.nom,
-      tarif,
-      prixUnitaire,
-      prixAchatUnitaire: produit.prixAchat,
-      quantite: quantiteReellementAjoutee
-    });
-  }
-  rendreTicket();
-}
-
-function retirerDuPanier(produitId, tarif) {
-  panierCourant = panierCourant.filter((l) => !(l.produitId === produitId && l.tarif === tarif));
-  rendreTicket();
-}
-
-function rendreTicket() {
-  const conteneur = document.getElementById('lignesTicket');
-  const totalEl = document.getElementById('totalTicket');
-  document.getElementById('dateTicket').textContent = new Date().toLocaleString('fr-FR');
-
-  if (panierCourant.length === 0) {
-    conteneur.innerHTML = '<p class="info-vide">Le ticket est vide. Ajoutez un article ci-contre.</p>';
-    totalEl.textContent = '0';
-    return;
-  }
-
-  const libellesTarif = { detail: '', demiGros: ' (Demi-gros)', gros: ' (Gros)' };
-
-  conteneur.innerHTML = panierCourant
-    .map(
-      (l) => `
-    <div class="ligne-ticket">
-      <span class="designation">${echapper(l.nom)}${libellesTarif[l.tarif] || ''}</span>
-      <span class="qte">×<input type="number" class="qte-ticket" data-id="${l.produitId}" data-tarif="${l.tarif}" min="1" step="1" value="${l.quantite}" /></span>
-      <span class="montant">${formaterMontant(l.prixUnitaire * l.quantite)}</span>
-      <button class="retirer" data-id="${l.produitId}" data-tarif="${l.tarif}" title="Retirer">✕</button>
-    </div>`
-    )
-    .join('');
-
-  conteneur.querySelectorAll('.retirer').forEach((btn) => {
-    btn.addEventListener('click', () => retirerDuPanier(btn.dataset.id, btn.dataset.tarif));
-  });
-
-  conteneur.querySelectorAll('.qte-ticket').forEach((champ) => {
-    champ.addEventListener('change', async () => {
-      const nouvelleQuantite = Math.max(1, parseInt(champ.value, 10) || 1);
-      await modifierQuantitePanier(champ.dataset.id, champ.dataset.tarif, nouvelleQuantite);
-    });
-  });
-
-  const total = panierCourant.reduce((s, l) => s + l.prixUnitaire * l.quantite, 0);
-  totalEl.textContent = formaterMontant(total);
-}
-
-/** Fixe directement la quantité d'une ligne du ticket (saisie manuelle), en respectant le stock disponible. */
-async function modifierQuantitePanier(produitId, tarif, nouvelleQuantite) {
-  const ligne = panierCourant.find((l) => l.produitId === produitId && l.tarif === tarif);
-  if (!ligne) return;
-
-  const produit = await db.produits.get(produitId);
-  const quantiteAutresLignes = panierCourant
-    .filter((l) => l.produitId === produitId && l.tarif !== tarif)
-    .reduce((s, l) => s + l.quantite, 0);
-  const maxDisponible = produit ? produit.stockActuel - quantiteAutresLignes : nouvelleQuantite;
-
-  if (nouvelleQuantite > maxDisponible) {
-    afficherToast(`Stock disponible : ${maxDisponible} unité(s) maximum.`, 'erreur');
-    ligne.quantite = Math.max(1, maxDisponible);
-  } else {
-    ligne.quantite = nouvelleQuantite;
-  }
-  rendreTicket();
-}
-
-document.getElementById('rechercheCaisse').addEventListener('input', (e) => {
-  rendreCatalogueCaisse(e.target.value);
-});
-
-document.getElementById('paiementOptions').addEventListener('click', (e) => {
-  const btn = e.target.closest('button[data-mode]');
-  if (!btn) return;
-  modePaiementSelectionne = btn.dataset.mode;
-  document.querySelectorAll('.paiement-options button').forEach((b) => b.classList.remove('selectionne'));
-  btn.classList.add('selectionne');
-});
-
-document.getElementById('btnEncaisser').addEventListener('click', async () => {
-  if (panierCourant.length === 0) {
-    afficherToast('Le ticket est vide.', 'erreur');
-    return;
-  }
-  const bouton = document.getElementById('btnEncaisser');
-  bouton.disabled = true;
-  try {
-    const vente = await encaisserVente(panierCourant, modePaiementSelectionne);
-    afficherToast(`Vente encaissée : ${formaterMontant(vente.montantTotal)} FCFA (${modePaiementSelectionne})`, 'succes');
-    derniereVenteEncaissee = vente;
-    document.getElementById('btnImprimerDernier').style.display = 'block';
-    panierCourant = [];
-    rendreTicket();
-    rendreCatalogueCaisse();
-    mettreAJourBadgeAttente();
-  } catch (err) {
-    afficherToast(err.message, 'erreur');
-  } finally {
-    bouton.disabled = false;
-  }
-});
-
-// ---- Impression du ticket (facturation) ----
-let derniereVenteEncaissee = null;
-
-function construireHtmlTicketImprimable(vente) {
-  const libellesTarif = { detail: '', demiGros: ' (Demi-gros)', gros: ' (Gros)' };
-  const lignes = vente.articles
-    .map(
-      (a) => `
-      <div class="ligne-imp">
-        <span>${echapper(a.nom)}${libellesTarif[a.tarif] || ''} ×${a.quantite}</span>
-        <span>${formaterMontant(a.sousTotal)}</span>
-      </div>`
-    )
-    .join('');
-
-  return `
-    <div class="ticket-imp">
-      <div class="entete-imp">
-        <strong>COMPTOIR</strong><br/>
-        Ticket de caisse<br/>
-        ${new Date(vente.dateVente).toLocaleString('fr-FR')}<br/>
-        N° ${vente.id.slice(0, 8).toUpperCase()}
+      <!-- Colonne ticket -->
+      <div class="ticket">
+        <div class="ticket-corps">
+          <div class="ticket-entete">
+            <div class="nom-boutique">TICKET DE CAISSE</div>
+            <div class="date-ticket" id="dateTicket">—</div>
+          </div>
+          <div id="lignesTicket">
+            <p class="info-vide">Le ticket est vide. Ajoutez un article ci-contre.</p>
+          </div>
+        </div>
+        <div class="ticket-total">
+          <span class="label">Total</span>
+          <span class="montant" id="totalTicket">0</span>
+        </div>
+        <div class="paiement-options" id="paiementOptions">
+          <button data-mode="Espèces" class="selectionne">💵 Espèces</button>
+          <button data-mode="Wave">🌊 Wave</button>
+          <button data-mode="Orange Money">🟠 Orange Money</button>
+          <button data-mode="Carte">💳 Carte</button>
+        </div>
+        <div class="encaisser-zone">
+          <button id="btnEncaisser" class="btn btn-principal btn-pleine-largeur">Encaisser la vente</button>
+          <button id="btnImprimerDernier" class="btn btn-discret btn-pleine-largeur" style="margin-top:8px; display:none;">🖨️ Imprimer le dernier ticket</button>
+        </div>
+        <div class="ticket-dents"></div>
       </div>
-      <hr/>
-      ${lignes}
-      <hr/>
-      <div class="ligne-imp total-imp">
-        <span>TOTAL</span>
-        <span>${formaterMontant(vente.montantTotal)} FCFA</span>
+    </div>
+  </section>
+
+  <!-- ===================== VUE PRODUITS ===================== -->
+  <section id="vue-produits" class="vue">
+    <h1 class="titre-vue">Catalogue produits</h1>
+    <p class="souscription-vue">Gérez vos articles : prix, stock et seuils d'alerte.</p>
+
+    <div class="barre-outils">
+      <input type="text" id="rechercheProduits" placeholder="🔍 Rechercher un produit…" style="max-width:260px;" />
+      <div style="display:flex; gap:8px;">
+        <button id="btnChargerDemo" class="btn btn-discret">✨ Charger des données de démo</button>
+        <button id="btnNouveauProduit" class="btn btn-principal">+ Nouveau produit</button>
       </div>
-      <div class="ligne-imp">
-        <span>Paiement</span>
-        <span>${echapper(vente.modePaiement)}</span>
+    </div>
+
+    <div class="carte" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Produit</th>
+            <th>Catégorie</th>
+            <th class="num">Prix achat</th>
+            <th class="num">Prix vente</th>
+            <th class="num">Stock</th>
+            <th>Synchro</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="corpsTableProduits"></tbody>
+      </table>
+      <p id="videProduits" class="info-vide" style="display:none;">Aucun produit pour le moment. Ajoutez votre premier article.</p>
+    </div>
+  </section>
+
+  <!-- ===================== VUE STOCK ===================== -->
+  <section id="vue-stock" class="vue">
+    <h1 class="titre-vue">Mouvements de stock</h1>
+    <p class="souscription-vue">Enregistrez une réception, une perte/casse, ou corrigez un inventaire.</p>
+
+    <div class="carte">
+      <div class="ligne-form">
+        <div>
+          <label for="stockProduit">Produit</label>
+          <select id="stockProduit"></select>
+        </div>
+        <div>
+          <label for="stockType">Type de mouvement</label>
+          <select id="stockType">
+            <option value="entree">Entrée (réception)</option>
+            <option value="sortie">Sortie (perte / casse)</option>
+            <option value="ajustement">Ajustement (inventaire)</option>
+          </select>
+        </div>
       </div>
-      <p class="pied-imp">Merci de votre confiance !</p>
-    </div>`;
-}
-
-document.getElementById('btnImprimerDernier').addEventListener('click', () => {
-  if (!derniereVenteEncaissee) {
-    afficherToast('Aucun ticket à imprimer pour le moment.', 'erreur');
-    return;
-  }
-  document.getElementById('zoneImpressionTicket').innerHTML = construireHtmlTicketImprimable(derniereVenteEncaissee);
-  window.print();
-});
-
-// =================================================================
-//  VUE PRODUITS
-// =================================================================
-
-async function rendreTableProduits(filtre = '') {
-  const corps = document.getElementById('corpsTableProduits');
-  const videEl = document.getElementById('videProduits');
-  let produits = await listerProduits();
-
-  if (filtre.trim() !== '') {
-    const f = filtre.toLowerCase();
-    produits = produits.filter((p) => p.nom.toLowerCase().includes(f));
-  }
-
-  if (produits.length === 0) {
-    corps.innerHTML = '';
-    videEl.style.display = 'block';
-    return;
-  }
-  videEl.style.display = 'none';
-
-  corps.innerHTML = produits
-    .map(
-      (p) => `
-    <tr class="${p.stockActuel <= p.stockAlerte ? 'alerte-stock' : ''}">
-      <td>${echapper(p.nom)}${p.stockActuel <= p.stockAlerte ? ' ⚠️' : ''}</td>
-      <td>${echapper(p.categorie)}</td>
-      <td class="num">${formaterMontant(p.prixAchat)}</td>
-      <td class="num">${formaterMontant(p.prixVente)}</td>
-      <td class="num">${p.stockActuel}</td>
-      <td><span class="tag ${p.statutSync}">${p.statutSync === 'pending' ? 'En attente' : 'Synchronisé'}</span></td>
-      <td>
-        <button class="btn btn-discret" data-editer="${p.id}">Modifier</button>
-        <button class="btn btn-danger" data-supprimer="${p.id}" data-nom="${echapper(p.nom)}" style="margin-left:4px;">Suppr.</button>
-      </td>
-    </tr>`
-    )
-    .join('');
-
-  corps.querySelectorAll('[data-editer]').forEach((btn) => {
-    btn.addEventListener('click', () => ouvrirModaleProduit(btn.dataset.editer));
-  });
-
-  corps.querySelectorAll('[data-supprimer]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const confirmation = window.confirm(`Supprimer définitivement "${btn.dataset.nom}" ?\n\nCette action est irréversible localement (l'historique des ventes déjà encaissées avec ce produit n'est pas affecté).`);
-      if (!confirmation) return;
-
-      await supprimerProduit(btn.dataset.supprimer);
-      afficherToast(`"${btn.dataset.nom}" supprimé.`, 'succes');
-      rendreTableProduits();
-    });
-  });
-}
-
-document.getElementById('rechercheProduits').addEventListener('input', (e) => {
-  rendreTableProduits(e.target.value);
-});
-
-function ouvrirModaleProduit(idExistant = null) {
-  document.getElementById('produitIdEdition').value = idExistant || '';
-  document.getElementById('titreModaleProduit').textContent = idExistant ? 'Modifier le produit' : 'Nouveau produit';
-
-  const champs = ['champNom', 'champCodeBarre', 'champPrixAchat', 'champPrixVente', 'champPrixDemiGros', 'champPrixGros', 'champStockActuel', 'champStockAlerte', 'champCategorie'];
-
-  if (idExistant) {
-    db.produits.get(idExistant).then((p) => {
-      document.getElementById('champNom').value = p.nom;
-      document.getElementById('champCodeBarre').value = p.codeBarre || '';
-      document.getElementById('champPrixAchat').value = p.prixAchat;
-      document.getElementById('champPrixVente').value = p.prixVente;
-      document.getElementById('champPrixDemiGros').value = p.prixDemiGros ?? '';
-      document.getElementById('champPrixGros').value = p.prixGros ?? '';
-      document.getElementById('champStockActuel').value = p.stockActuel;
-      document.getElementById('champStockAlerte').value = p.stockAlerte;
-      document.getElementById('champCategorie').value = p.categorie;
-    });
-  } else {
-    champs.forEach((id) => (document.getElementById(id).value = ''));
-  }
-
-  document.getElementById('modaleProduit').classList.add('ouverte');
-}
-
-function fermerModaleProduit() {
-  document.getElementById('modaleProduit').classList.remove('ouverte');
-}
-
-document.getElementById('btnNouveauProduit').addEventListener('click', () => ouvrirModaleProduit());
-document.getElementById('btnAnnulerProduit').addEventListener('click', fermerModaleProduit);
-
-document.getElementById('btnChargerDemo').addEventListener('click', async () => {
-  const produitsDemo = [
-    { nom: 'Riz local 5kg', codeBarre: '3010000000011', prixAchat: 3000, prixVente: 3750, stockActuel: 24, stockAlerte: 5, categorie: 'Épicerie' },
-    { nom: 'Huile végétale 1L', codeBarre: '3010000000028', prixAchat: 1200, prixVente: 1600, stockActuel: 3, stockAlerte: 5, categorie: 'Épicerie' },
-    { nom: 'Savon de toilette', codeBarre: '3010000000035', prixAchat: 250, prixVente: 400, stockActuel: 40, stockAlerte: 10, categorie: 'Hygiène' },
-    { nom: 'Eau minérale 1.5L', codeBarre: '3010000000042', prixAchat: 300, prixVente: 500, stockActuel: 60, stockAlerte: 15, categorie: 'Boissons' },
-    { nom: 'Sucre en poudre 1kg', codeBarre: '3010000000059', prixAchat: 650, prixVente: 850, stockActuel: 18, stockAlerte: 5, categorie: 'Épicerie' },
-    { nom: 'Carte de recharge 1000F', codeBarre: '3010000000066', prixAchat: 950, prixVente: 1000, stockActuel: 50, stockAlerte: 10, categorie: 'Télécom' }
-  ];
-
-  for (const p of produitsDemo) {
-    await ajouterProduit(p);
-  }
-
-  afficherToast(`${produitsDemo.length} produits de démonstration ajoutés.`, 'succes');
-  rendreTableProduits();
-  mettreAJourBadgeAttente();
-});
-
-document.getElementById('btnSauverProduit').addEventListener('click', async () => {
-  const id = document.getElementById('produitIdEdition').value;
-  const nom = document.getElementById('champNom').value.trim();
-  const prixAchat = document.getElementById('champPrixAchat').value;
-  const prixVente = document.getElementById('champPrixVente').value;
-
-  if (!nom || prixAchat === '' || prixVente === '') {
-    afficherToast('Nom, prix d\'achat et prix de vente sont obligatoires.', 'erreur');
-    return;
-  }
-
-  const donnees = {
-    nom,
-    codeBarre: document.getElementById('champCodeBarre').value.trim(),
-    prixAchat,
-    prixVente,
-    prixDemiGros: document.getElementById('champPrixDemiGros').value === '' ? null : Number(document.getElementById('champPrixDemiGros').value),
-    prixGros: document.getElementById('champPrixGros').value === '' ? null : Number(document.getElementById('champPrixGros').value),
-    stockActuel: document.getElementById('champStockActuel').value || 0,
-    stockAlerte: document.getElementById('champStockAlerte').value || 0,
-    categorie: document.getElementById('champCategorie').value.trim() || 'Non classé'
-  };
-
-  try {
-    if (id) {
-      await modifierProduit(id, donnees);
-      afficherToast('Produit modifié.', 'succes');
-    } else {
-      await ajouterProduit(donnees);
-      afficherToast('Produit ajouté.', 'succes');
-    }
-    fermerModaleProduit();
-    rendreTableProduits();
-    mettreAJourBadgeAttente();
-  } catch (err) {
-    afficherToast('Erreur : ' + err.message, 'erreur');
-  }
-});
-
-// =================================================================
-//  VUE STOCK
-// =================================================================
-
-async function remplirSelectProduitsStock() {
-  const select = document.getElementById('stockProduit');
-  const produits = await listerProduits();
-  select.innerHTML = produits.map((p) => `<option value="${p.id}">${echapper(p.nom)} (stock: ${p.stockActuel})</option>`).join('');
-}
-
-async function rendreTableStock() {
-  const corps = document.getElementById('corpsTableStock');
-  const videEl = document.getElementById('videStock');
-  const mouvements = await db.stocksLog.orderBy('dateMouvement').reverse().limit(50).toArray();
-
-  if (mouvements.length === 0) {
-    corps.innerHTML = '';
-    videEl.style.display = 'block';
-    return;
-  }
-  videEl.style.display = 'none';
-
-  const produitsIndex = {};
-  (await listerProduits()).forEach((p) => (produitsIndex[p.id] = p.nom));
-
-  const libellesType = { entree: '⬆️ Entrée', sortie: '⬇️ Sortie', ajustement: '🛠️ Ajustement' };
-
-  corps.innerHTML = mouvements
-    .map(
-      (m) => `
-    <tr>
-      <td>${new Date(m.dateMouvement).toLocaleString('fr-FR')}</td>
-      <td>${echapper(produitsIndex[m.produitId] || 'Produit supprimé')}</td>
-      <td>${libellesType[m.type] || m.type}</td>
-      <td class="num">${m.quantite}</td>
-      <td>${echapper(m.motif || '—')}</td>
-      <td><span class="tag ${m.statutSync}">${m.statutSync === 'pending' ? 'En attente' : 'Synchronisé'}</span></td>
-    </tr>`
-    )
-    .join('');
-}
-
-document.getElementById('btnEnregistrerMouvement').addEventListener('click', async () => {
-  const produitId = document.getElementById('stockProduit').value;
-  const type = document.getElementById('stockType').value;
-  const quantite = document.getElementById('stockQuantite').value;
-  const motif = document.getElementById('stockMotif').value.trim();
-
-  if (!produitId || !quantite || Number(quantite) <= 0) {
-    afficherToast('Sélectionnez un produit et indiquez une quantité valide.', 'erreur');
-    return;
-  }
-
-  try {
-    await enregistrerMouvementStock(produitId, type, quantite, motif);
-    afficherToast('Mouvement de stock enregistré.', 'succes');
-    document.getElementById('stockQuantite').value = '';
-    document.getElementById('stockMotif').value = '';
-    remplirSelectProduitsStock();
-    rendreTableStock();
-    mettreAJourBadgeAttente();
-  } catch (err) {
-    afficherToast('Erreur : ' + err.message, 'erreur');
-  }
-});
-
-// =================================================================
-//  VUE KPI
-// =================================================================
-
-async function rendreKpi() {
-  const perf = await calculerPerformanceJournaliere();
-
-  document.getElementById('dateKpi').textContent = `Journée du ${new Date().toLocaleDateString('fr-FR')}`;
-  document.getElementById('kpiCA').textContent = formaterMontant(perf.chiffreAffaires);
-  document.getElementById('kpiMarge').textContent = formaterMontant(perf.margeNette);
-  document.getElementById('kpiNbVentes').textContent = perf.nombreVentes;
-
-  const corpsTop3 = document.getElementById('corpsTop3');
-  const videTop3 = document.getElementById('videTop3');
-  if (perf.top3Produits.length === 0) {
-    corpsTop3.innerHTML = '';
-    videTop3.style.display = 'block';
-  } else {
-    videTop3.style.display = 'none';
-    corpsTop3.innerHTML = perf.top3Produits
-      .map(
-        (p, i) => `
-      <tr>
-        <td>${['🥇', '🥈', '🥉'][i] || ''} ${echapper(p.nom)}</td>
-        <td class="num">${p.quantite}</td>
-        <td class="num">${formaterMontant(p.montant)}</td>
-      </tr>`
-      )
-      .join('');
-  }
-
-  const corpsVentilation = document.getElementById('corpsVentilation');
-  const entrees = Object.entries(perf.ventilationParPaiement);
-  corpsVentilation.innerHTML =
-    entrees.length === 0
-      ? '<tr><td colspan="2" class="info-vide">Aucune donnée.</td></tr>'
-      : entrees.map(([mode, montant]) => `<tr><td>${echapper(mode)}</td><td class="num">${formaterMontant(montant)}</td></tr>`).join('');
-}
-
-document.getElementById('btnRafraichirKpi').addEventListener('click', rendreKpi);
-
-document.getElementById('btnExporterCsv').addEventListener('click', async () => {
-  const perf = await calculerPerformanceJournaliere();
-
-  const lignes = [
-    ['Rapport de performance', perf.date],
-    [],
-    ['Indicateur', 'Valeur'],
-    ['Chiffre d\'affaires (FCFA)', perf.chiffreAffaires],
-    ['Marge nette (FCFA)', perf.margeNette],
-    ['Nombre de ventes', perf.nombreVentes],
-    [],
-    ['Top produits vendus', 'Quantité', 'Montant (FCFA)'],
-    ...perf.top3Produits.map((p) => [p.nom, p.quantite, p.montant]),
-    [],
-    ['Mode de paiement', 'Montant (FCFA)'],
-    ...Object.entries(perf.ventilationParPaiement)
-  ];
-
-  // Génération du CSV (séparateur point-virgule pour une bonne compatibilité Excel FR)
-  const csv = lignes.map((ligne) => ligne.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\n');
-
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }); // BOM pour accents corrects dans Excel
-  const url = URL.createObjectURL(blob);
-  const lien = document.createElement('a');
-  lien.href = url;
-  lien.download = `performance-${perf.date}.csv`;
-  lien.click();
-  URL.revokeObjectURL(url);
-
-  afficherToast('Export CSV téléchargé.', 'succes');
-});
-
-// =================================================================
-//  VUE PARAMÈTRES (boutique + synchronisation + code d'accès partagé)
-// =================================================================
-
-function rendreStatutSynchro(config) {
-  const statutEl = document.getElementById('statutSynchro');
-  const boutonEl = document.getElementById('btnActiverSync');
-  const boutonPayer = document.getElementById('btnPayerAbonnement');
-
-  if (config.cleApiSync) {
-    statutEl.textContent = '✅ Synchronisation active — vos données sont sauvegardées automatiquement.';
-    boutonEl.textContent = '☁️ Synchronisation déjà activée';
-    boutonEl.disabled = true;
-    boutonPayer.style.display = 'block';
-  } else {
-    statutEl.textContent = "Vos données restent uniquement sur cet appareil tant que la synchronisation n'est pas activée.";
-    boutonEl.textContent = '☁️ Activer la synchronisation';
-    boutonEl.disabled = false;
-    boutonPayer.style.display = 'none';
-  }
-}
-
-async function rendreParametres() {
-  const config = obtenirConfigBoutique();
-  if (!config) return;
-
-  document.getElementById('paramNomBoutique').value = config.nom;
-  document.getElementById('paramBoutiqueId').value = config.id;
-  document.getElementById('paramCleApi').value = config.cleApiSync || '';
-  document.getElementById('paramNouveauCode').value = '';
-  rendreStatutSynchro(config);
-}
-
-document.getElementById('btnSauverParametresBoutique').addEventListener('click', () => {
-  const nom = document.getElementById('paramNomBoutique').value.trim();
-
-  if (!nom) {
-    afficherToast('Le nom de la boutique est obligatoire.', 'erreur');
-    return;
-  }
-
-  const config = definirConfigBoutique({ nom });
-  document.getElementById('nomBoutiqueHeader').textContent = nom;
-  afficherToast('Nom enregistré.', 'succes');
-});
-
-// ---- Activation en un clic : inscrit la boutique auprès de l'API et récupère sa clé ----
-document.getElementById('btnActiverSync').addEventListener('click', async () => {
-  const config = obtenirConfigBoutique();
-  const bouton = document.getElementById('btnActiverSync');
-
-  if (!navigator.onLine) {
-    afficherToast('Connexion internet requise pour activer la synchronisation.', 'erreur');
-    return;
-  }
-
-  bouton.disabled = true;
-  bouton.textContent = 'Activation en cours…';
-
-  try {
-    const reponse = await fetch(`${CONFIG_SYNC.urlApi}/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ boutiqueId: config.id, nom: config.nom })
-    });
-
-    if (!reponse.ok) {
-      const erreur = await reponse.json().catch(() => ({}));
-      throw new Error(erreur.erreur || `Erreur serveur (${reponse.status})`);
-    }
-
-    const { apiKey } = await reponse.json();
-
-    definirConfigBoutique({ nom: config.nom, cleApiSync: apiKey });
-    CONFIG_SYNC.cleApi = apiKey;
-    CONFIG_SYNC.mode = 'api';
-    document.getElementById('paramCleApi').value = apiKey;
-
-    rendreStatutSynchro(obtenirConfigBoutique());
-    afficherToast('Synchronisation activée avec succès !', 'succes');
-    synchroniserDonnees();
-    verifierEtAppliquerStatutAbonnement();
-  } catch (err) {
-    afficherToast('Échec de l\'activation : ' + err.message, 'erreur');
-    bouton.disabled = false;
-    bouton.textContent = '☁️ Activer la synchronisation';
-  }
-});
-
-// ---- Option avancée : coller une clé API existante à la main (support/debug) ----
-document.getElementById('btnSauverCleApiManuelle').addEventListener('click', () => {
-  const config = obtenirConfigBoutique();
-  const cleApiSync = document.getElementById('paramCleApi').value.trim();
-
-  if (!cleApiSync) {
-    afficherToast('Champ vide — rien à enregistrer.', 'erreur');
-    return;
-  }
-
-  definirConfigBoutique({ nom: config.nom, cleApiSync });
-  CONFIG_SYNC.cleApi = cleApiSync;
-  CONFIG_SYNC.mode = 'api';
-  rendreStatutSynchro(obtenirConfigBoutique());
-  afficherToast('Clé API enregistrée.', 'succes');
-});
-
-// ---- Paiement d'abonnement via PayDunya (Wave, Orange Money, carte...) ----
-document.getElementById('btnPayerAbonnement').addEventListener('click', async () => {
-  const config = obtenirConfigBoutique();
-  const bouton = document.getElementById('btnPayerAbonnement');
-
-  if (!navigator.onLine) {
-    afficherToast('Connexion internet requise pour payer votre abonnement.', 'erreur');
-    return;
-  }
-
-  bouton.disabled = true;
-  bouton.textContent = 'Préparation du paiement…';
-
-  try {
-    const reponse = await fetch(`${CONFIG_SYNC.urlApi}/paydunya/creer-facture`, {
-      method: 'POST',
-      headers: { 'X-API-Key': config.cleApiSync }
-    });
-
-    if (!reponse.ok) {
-      const erreur = await reponse.json().catch(() => ({}));
-      throw new Error(erreur.erreur || `Erreur serveur (${reponse.status})`);
-    }
-
-    const { urlPaiement } = await reponse.json();
-    afficherToast('Redirection vers la page de paiement…', 'succes');
-    window.location.href = urlPaiement; // redirection vers PayDunya (Wave / Orange Money / Carte)
-  } catch (err) {
-    afficherToast('Échec : ' + err.message, 'erreur');
-    bouton.disabled = false;
-    bouton.textContent = '💳 Payer / renouveler mon abonnement';
-  }
-});
-
-document.getElementById('btnChangerCodeAcces').addEventListener('click', async () => {
-  const nouveauCode = document.getElementById('paramNouveauCode').value;
-
-  try {
-    await definirCodeAcces(nouveauCode);
-    document.getElementById('paramNouveauCode').value = '';
-    afficherToast('Code d\'accès mis à jour.', 'succes');
-  } catch (err) {
-    afficherToast('Erreur : ' + err.message, 'erreur');
-  }
-});
-
-// =================================================================
-//  ACCÈS : configuration initiale + verrouillage / déverrouillage
-// =================================================================
-
-let pinEnCoursDeSaisie = '';
-
-function ouvrirEcran(idEcran) {
-  document.querySelectorAll('.ecran-plein').forEach((e) => e.classList.remove('ouvert'));
-  document.getElementById(idEcran).classList.add('ouvert');
-}
-
-function fermerTousLesEcransPleins() {
-  document.querySelectorAll('.ecran-plein').forEach((e) => e.classList.remove('ouvert'));
-}
-
-// ---- Configuration initiale de la boutique + premier code d'accès (1ère utilisation) ----
-document.getElementById('btnValiderOnboarding').addEventListener('click', async () => {
-  const nom = document.getElementById('onbNomBoutique').value.trim();
-  const code = document.getElementById('onbCode').value;
-
-  if (!nom) {
-    afficherToast('Merci d\'indiquer le nom de la boutique.', 'erreur');
-    return;
-  }
-
-  try {
-    await definirCodeAcces(code);
-    definirConfigBoutique({ nom });
-    afficherToast('Boutique configurée.', 'succes');
-    afficherEcranDeverrouillage();
-  } catch (err) {
-    afficherToast('Erreur : ' + err.message, 'erreur');
-  }
-});
-
-// ---- Écran de déverrouillage (code d'accès partagé) ----
-function afficherEcranDeverrouillage() {
-  const config = obtenirConfigBoutique();
-  document.getElementById('titreBoutiqueDeverrouillage').textContent = config ? config.nom : 'GesCom2.0';
-  pinEnCoursDeSaisie = '';
-  rafraichirAffichagePin();
-  ouvrirEcran('ecranDeverrouillage');
-}
-
-function rafraichirAffichagePin() {
-  document.querySelectorAll('#pinAffichage span').forEach((span, i) => {
-    span.classList.toggle('rempli', i < pinEnCoursDeSaisie.length);
-  });
-}
-
-document.getElementById('pinPad').addEventListener('click', async (e) => {
-  const btn = e.target.closest('button[data-chiffre]');
-  if (!btn) return;
-
-  if (pinEnCoursDeSaisie.length < 4) {
-    pinEnCoursDeSaisie += btn.dataset.chiffre;
-    rafraichirAffichagePin();
-  }
-
-  if (pinEnCoursDeSaisie.length === 4) {
-    const succes = await tenterDeverrouillage(pinEnCoursDeSaisie);
-    if (succes) {
-      demarrerApplication();
-    } else {
-      afficherToast('Code incorrect.', 'erreur');
-      pinEnCoursDeSaisie = '';
-      rafraichirAffichagePin();
-    }
-  }
-});
-
-document.getElementById('btnEffacerPin').addEventListener('click', () => {
-  pinEnCoursDeSaisie = pinEnCoursDeSaisie.slice(0, -1);
-  rafraichirAffichagePin();
-});
-
-document.getElementById('btnVerrouiller').addEventListener('click', () => {
-  verrouiller();
-  panierCourant = [];
-  afficherEcranDeverrouillage();
-});
-
-// ---- Démarrage effectif de l'application une fois la caisse déverrouillée ----
-function demarrerApplication() {
-  fermerTousLesEcransPleins();
-
-  const config = obtenirConfigBoutique();
-  document.getElementById('nomBoutiqueHeader').textContent = config.nom;
-  if (config.cleApiSync) {
-    CONFIG_SYNC.cleApi = config.cleApiSync;
-    CONFIG_SYNC.mode = 'api';
-  } else {
-    CONFIG_SYNC.mode = 'simulation'; // pas encore de clé : la sync réelle sera activée depuis Paramètres
-  }
-
-  activerVue('caisse');
-  rendreTicket();
-  mettreAJourBadgeAttente();
-  verifierEtAppliquerStatutAbonnement();
-}
-
-
-// =================================================================
-//  ABONNEMENT : bannière + blocage de l'encaissement si suspendu
-// =================================================================
-
-function rendreBanniereAbonnement() {
-  const cache = obtenirStatutAbonnementCache();
-  const banniere = document.getElementById('banniereAbonnement');
-  const boutonEncaisser = document.getElementById('btnEncaisser');
-
-  if (!cache) {
-    banniere.style.display = 'none';
-    boutonEncaisser.disabled = false;
-    return;
-  }
-
-  if (cache.abonnementStatut === 'suspendu') {
-    banniere.className = 'banniere-abonnement bloquant';
-    banniere.innerHTML = "🔒 Abonnement suspendu — l'encaissement est désactivé. Contactez l'opérateur pour réactiver votre compte.";
-    banniere.style.display = 'block';
-    boutonEncaisser.disabled = true;
-    return;
-  }
-
-  boutonEncaisser.disabled = false;
-
-  if (cache.abonnementStatut === 'essai' && cache.joursRestants !== null && cache.joursRestants <= 3) {
-    banniere.className = 'banniere-abonnement avertissement';
-    banniere.textContent =
-      cache.joursRestants > 0
-        ? `⏳ Votre essai gratuit se termine dans ${cache.joursRestants} jour(s). Contactez l'opérateur pour continuer sans interruption.`
-        : "⏳ Votre essai gratuit est terminé. Contactez l'opérateur pour activer votre abonnement.";
-    banniere.style.display = 'block';
-    return;
-  }
-
-  banniere.style.display = 'none';
-}
-
-async function verifierEtAppliquerStatutAbonnement() {
-  await verifierStatutAbonnement(); // met à jour le cache si en ligne et sync activée
-  rendreBanniereAbonnement(); // applique dans tous les cas (même hors-ligne, avec le dernier cache connu)
-}
-
-async function mettreAJourBadgeAttente() {
-  const nb = await compterElementsEnAttente();
-  const badge = document.getElementById('badgeAttente');
-  if (nb > 0) {
-    badge.style.display = 'inline-block';
-    badge.textContent = `${nb} en attente`;
-  } else {
-    badge.style.display = 'none';
-  }
-}
-
-function mettreAJourPastilleReseau(enLigne) {
-  const pastille = document.getElementById('pastilleReseau');
-  const texte = document.getElementById('texteReseau');
-  pastille.classList.toggle('hors-ligne', !enLigne);
-  texte.textContent = enLigne ? 'En ligne' : 'Hors-ligne';
-}
-
-document.addEventListener('reseau-statut', (e) => {
-  mettreAJourPastilleReseau(e.detail.enLigne);
-  if (e.detail.enLigne) verifierEtAppliquerStatutAbonnement();
-});
-document.addEventListener('sync-terminee', () => {
-  mettreAJourBadgeAttente();
-  rendreTableProduits();
-  rendreTableStock();
-  afficherToast('Synchronisation terminée.', 'succes');
-});
-
-// ---- Échappement HTML simple (sécurité anti-injection dans les rendus) ----
-function echapper(texte) {
-  const div = document.createElement('div');
-  div.textContent = texte == null ? '' : String(texte);
-  return div.innerHTML;
-}
-
-// =================================================================
-//  Initialisation générale de l'application
-// =================================================================
-
-window.addEventListener('DOMContentLoaded', async () => {
-  mettreAJourPastilleReseau(navigator.onLine);
-  initialiserEcouteReseau();
-
-  // Enregistrement du Service Worker pour le mode hors-ligne complet
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker
-      .register('service-worker.js')
-      .then((reg) => console.log('[PWA] Service worker enregistré :', reg.scope))
-      .catch((err) => console.error('[PWA] Échec de l\'enregistrement du service worker :', err));
-  }
-
-  // ---- Orchestration du flux d'accès : onboarding (1ère fois) → code d'accès → app ----
-  await db.open(); // s'assure que la base (et sa migration éventuelle) est prête avant toute lecture
-
-  if (!boutiqueEstConfiguree() || !codeAccesEstDefini()) {
-    ouvrirEcran('ecranOnboarding');
-    return; // le reste du flux est déclenché par le bouton "Démarrer" (voir gestionnaire ci-dessus)
-  }
-
-  if (estDeverrouille()) {
-    demarrerApplication();
-  } else {
-    afficherEcranDeverrouillage();
-  }
-
-  // ---- Retour depuis la page de paiement PayDunya ----
-  const parametresUrl = new URLSearchParams(window.location.search);
-  if (parametresUrl.get('paiement') === 'succes') {
-    afficherToast('Paiement reçu — vérification en cours…', 'succes');
-    setTimeout(() => verifierEtAppliquerStatutAbonnement(), 1500); // laisse le temps au webhook PayDunya d'arriver
-    window.history.replaceState({}, '', window.location.pathname); // nettoie l'URL
-  } else if (parametresUrl.get('paiement') === 'annule') {
-    afficherToast('Paiement annulé.', 'erreur');
-    window.history.replaceState({}, '', window.location.pathname);
-  }
-});
+      <div class="ligne-form">
+        <div>
+          <label for="stockQuantite">Quantité</label>
+          <input type="number" id="stockQuantite" min="0" placeholder="0" />
+        </div>
+        <div>
+          <label for="stockMotif">Motif (optionnel)</label>
+          <input type="text" id="stockMotif" placeholder="Ex: Réception fournisseur X" />
+        </div>
+      </div>
+      <button id="btnEnregistrerMouvement" class="btn btn-principal btn-pleine-largeur">Enregistrer le mouvement</button>
+    </div>
+
+    <h2 style="font-size:1rem; margin: 22px 0 10px;">Journal des mouvements récents</h2>
+    <div class="carte" style="padding:0; overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Produit</th>
+            <th>Type</th>
+            <th class="num">Quantité</th>
+            <th>Motif</th>
+            <th>Synchro</th>
+          </tr>
+        </thead>
+        <tbody id="corpsTableStock"></tbody>
+      </table>
+      <p id="videStock" class="info-vide" style="display:none;">Aucun mouvement enregistré.</p>
+    </div>
+  </section>
+
+  <!-- ===================== VUE KPI ===================== -->
+  <section id="vue-kpi" class="vue">
+    <h1 class="titre-vue">Performance du jour</h1>
+    <p class="souscription-vue" id="dateKpi">—</p>
+
+    <div class="grille-kpi">
+      <div class="kpi">
+        <div class="label">Chiffre d'affaires</div>
+        <div class="valeur" id="kpiCA">0</div>
+      </div>
+      <div class="kpi accent">
+        <div class="label">Marge nette</div>
+        <div class="valeur" id="kpiMarge">0</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Ventes encaissées</div>
+        <div class="valeur" id="kpiNbVentes">0</div>
+      </div>
+    </div>
+
+    <div class="carte">
+      <h2 style="font-size:0.95rem; margin-top:0;">🏆 Top 3 des produits les plus vendus</h2>
+      <table>
+        <thead><tr><th>Produit</th><th class="num">Qté vendue</th><th class="num">Montant généré</th></tr></thead>
+        <tbody id="corpsTop3"></tbody>
+      </table>
+      <p id="videTop3" class="info-vide" style="display:none;">Aucune vente aujourd'hui pour le moment.</p>
+    </div>
+
+    <div class="carte">
+      <h2 style="font-size:0.95rem; margin-top:0;">Ventilation par mode de paiement</h2>
+      <table>
+        <thead><tr><th>Mode de paiement</th><th class="num">Montant</th></tr></thead>
+        <tbody id="corpsVentilation"></tbody>
+      </table>
+    </div>
+
+    <button id="btnRafraichirKpi" class="btn btn-discret">↻ Rafraîchir</button>
+    <button id="btnExporterCsv" class="btn btn-discret">⬇ Exporter en CSV</button>
+  </section>
+
+  <!-- ===================== VUE PARAMÈTRES ===================== -->
+  <section id="vue-parametres" class="vue">
+    <h1 class="titre-vue">Paramètres</h1>
+    <p class="souscription-vue">Informations de la boutique et code d'accès partagé de la caisse.</p>
+
+    <div class="carte">
+      <h2 style="font-size:0.95rem; margin-top:0;">Boutique</h2>
+      <label for="paramNomBoutique">Nom de la boutique</label>
+      <input type="text" id="paramNomBoutique" />
+      <label>Identifiant de la boutique</label>
+      <input type="text" id="paramBoutiqueId" readonly style="background:var(--papier); font-family:var(--font-num); font-size:0.75rem;" />
+      <button id="btnSauverParametresBoutique" class="btn btn-discret btn-pleine-largeur">Enregistrer le nom</button>
+    </div>
+
+    <div class="carte">
+      <h2 style="font-size:0.95rem; margin-top:0;">Synchronisation</h2>
+      <p class="souscription-vue" id="statutSynchro">Vos données restent uniquement sur cet appareil tant que la synchronisation n'est pas activée.</p>
+      <button id="btnActiverSync" class="btn btn-principal btn-pleine-largeur">☁️ Activer la synchronisation</button>
+      <button id="btnPayerAbonnement" class="btn btn-principal btn-pleine-largeur" style="display:none; margin-top:10px; background:var(--vert); color:#fff;">💳 Payer / renouveler mon abonnement</button>
+      <details style="margin-top:12px;">
+        <summary style="cursor:pointer; font-size:0.78rem; color:var(--gris-texte);">Options avancées (clé API manuelle)</summary>
+        <label for="paramCleApi" style="margin-top:10px;">Clé API de synchronisation</label>
+        <input type="text" id="paramCleApi" placeholder="Laisser vide si vous utilisez le bouton ci-dessus" />
+        <button id="btnSauverCleApiManuelle" class="btn btn-discret btn-pleine-largeur" style="margin-top:8px;">Enregistrer cette clé</button>
+      </details>
+    </div>
+
+    <div class="carte">
+      <h2 style="font-size:0.95rem; margin-top:0;">Code d'accès de la caisse</h2>
+      <p class="souscription-vue">Ce code unique est partagé par toute l'équipe qui utilise cette caisse.</p>
+      <label for="paramNouveauCode">Nouveau code (4 chiffres)</label>
+      <input type="password" id="paramNouveauCode" inputmode="numeric" maxlength="4" placeholder="••••" />
+      <button id="btnChangerCodeAcces" class="btn btn-discret btn-pleine-largeur">Changer le code</button>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===================== MODALE PRODUIT ===================== -->
+<div id="modaleProduit" class="fond-modale">
+  <div class="modale">
+    <h2 id="titreModaleProduit">Nouveau produit</h2>
+    <input type="hidden" id="produitIdEdition" />
+
+    <label for="champNom">Nom du produit *</label>
+    <input type="text" id="champNom" placeholder="Ex: Riz local 5kg" />
+
+    <label for="champCodeBarre">Code-barres</label>
+    <input type="text" id="champCodeBarre" placeholder="Ex: 3012345678901" />
+
+    <div class="ligne-form">
+      <div>
+        <label for="champPrixAchat">Prix d'achat *</label>
+        <input type="number" id="champPrixAchat" min="0" placeholder="0" />
+      </div>
+      <div>
+        <label for="champPrixVente">Prix de détail (unité) *</label>
+        <input type="number" id="champPrixVente" min="0" placeholder="0" />
+      </div>
+    </div>
+
+    <div class="ligne-form">
+      <div>
+        <label for="champPrixDemiGros">Prix demi-gros <span class="label-optionnel">(optionnel)</span></label>
+        <input type="number" id="champPrixDemiGros" min="0" placeholder="Laisser vide si non applicable" />
+      </div>
+      <div>
+        <label for="champPrixGros">Prix de gros <span class="label-optionnel">(optionnel)</span></label>
+        <input type="number" id="champPrixGros" min="0" placeholder="Laisser vide si non applicable" />
+      </div>
+    </div>
+
+    <div class="ligne-form">
+      <div>
+        <label for="champStockActuel">Stock actuel</label>
+        <input type="number" id="champStockActuel" min="0" placeholder="0" />
+      </div>
+      <div>
+        <label for="champStockAlerte">Seuil d'alerte</label>
+        <input type="number" id="champStockAlerte" min="0" placeholder="0" />
+      </div>
+    </div>
+
+    <label for="champCategorie">Catégorie</label>
+    <input type="text" id="champCategorie" placeholder="Ex: Épicerie, Boissons…" />
+
+    <div class="modale-actions">
+      <button id="btnAnnulerProduit" class="btn btn-discret">Annuler</button>
+      <button id="btnSauverProduit" class="btn btn-principal">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Zone imprimable (masquée à l'écran, visible uniquement à l'impression) -->
+<div id="zoneImpressionTicket" class="zone-impression"></div>
+
+<!-- Toast de notification -->
+<div id="toast"></div>
+
+<!-- ===================== SCRIPTS ===================== -->
+<script src="js/db.js"></script>
+<script src="js/config.js"></script>
+<script src="js/acces.js"></script>
+<script src="js/abonnement.js"></script>
+<script src="js/produits.js"></script>
+<script src="js/ventes.js"></script>
+<script src="js/stock.js"></script>
+<script src="js/kpi.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
