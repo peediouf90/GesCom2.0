@@ -63,6 +63,7 @@ module.exports = async function handler(req, res) {
     const resultat = boutiques.map((b) => ({
       id: b.id,
       nom: b.nom,
+      apiKey: b.api_key,
       creeLe: b.cree_le,
       abonnementStatut: b.abonnement_statut,
       abonnementExpireLe: b.abonnement_expire_le,
