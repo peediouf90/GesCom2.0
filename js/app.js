@@ -283,37 +283,64 @@ document.getElementById('btnEncaisser').addEventListener('click', async () => {
 let derniereVenteEncaissee = null;
 
 function construireHtmlTicketImprimable(vente) {
-  const libellesTarif = { detail: '', demiGros: ' (Demi-gros)', gros: ' (Gros)' };
+  const config = obtenirConfigBoutique() || {};
+  const libellesTarif = { detail: 'Détail', demiGros: 'Demi-gros', gros: 'Gros' };
+
   const lignes = vente.articles
     .map(
       (a) => `
-      <div class="ligne-imp">
-        <span>${echapper(a.nom)}${libellesTarif[a.tarif] || ''} ×${a.quantite}</span>
-        <span>${formaterMontant(a.sousTotal)}</span>
-      </div>`
+      <tr>
+        <td>${echapper(a.nom)}</td>
+        <td class="centre">${libellesTarif[a.tarif] || 'Détail'}</td>
+        <td class="chiffre centre">${a.quantite}</td>
+        <td class="chiffre">${formaterMontant(a.prixUnitaire)}</td>
+        <td class="chiffre">${formaterMontant(a.sousTotal)}</td>
+      </tr>`
     )
     .join('');
 
+  const dateFacture = new Date(vente.dateVente);
+
   return `
-    <div class="ticket-imp">
-      <div class="entete-imp">
-        <strong>COMPTOIR</strong><br/>
-        Ticket de caisse<br/>
-        ${new Date(vente.dateVente).toLocaleString('fr-FR')}<br/>
-        N° ${vente.id.slice(0, 8).toUpperCase()}
+    <div class="facture-a4">
+      <div class="entete-facture">
+        <div class="coordonnees-boutique">
+          <div class="nom-boutique-facture">${echapper(config.nom || 'Ma boutique')}</div>
+          ${config.adresse ? `<div>${echapper(config.adresse)}</div>` : ''}
+          ${config.telephone ? `<div>Tél : ${echapper(config.telephone)}</div>` : ''}
+        </div>
+        <div class="titre-facture">
+          <div class="mot-facture">FACTURE</div>
+          <div>N° ${vente.id.slice(0, 8).toUpperCase()}</div>
+          <div>${dateFacture.toLocaleDateString('fr-FR')} à ${dateFacture.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
+        </div>
       </div>
-      <hr/>
-      ${lignes}
-      <hr/>
-      <div class="ligne-imp total-imp">
-        <span>TOTAL</span>
-        <span>${formaterMontant(vente.montantTotal)} FCFA</span>
+
+      <table class="table-facture">
+        <thead>
+          <tr>
+            <th>Désignation</th>
+            <th class="centre">Tarif</th>
+            <th class="centre">Qté</th>
+            <th class="chiffre">Prix unitaire</th>
+            <th class="chiffre">Montant</th>
+          </tr>
+        </thead>
+        <tbody>${lignes}</tbody>
+      </table>
+
+      <div class="bloc-total-facture">
+        <div class="ligne-total-facture">
+          <span>Mode de paiement</span>
+          <span>${echapper(vente.modePaiement)}</span>
+        </div>
+        <div class="ligne-total-facture total-final-facture">
+          <span>TOTAL</span>
+          <span>${formaterMontant(vente.montantTotal)} FCFA</span>
+        </div>
       </div>
-      <div class="ligne-imp">
-        <span>Paiement</span>
-        <span>${echapper(vente.modePaiement)}</span>
-      </div>
-      <p class="pied-imp">Merci de votre confiance !</p>
+
+      <p class="pied-facture">Merci de votre confiance !</p>
     </div>`;
 }
 
@@ -641,23 +668,42 @@ async function rendreParametres() {
   if (!config) return;
 
   document.getElementById('paramNomBoutique').value = config.nom;
+  document.getElementById('paramTelephone').value = config.telephone || '';
+  document.getElementById('paramAdresse').value = config.adresse || '';
   document.getElementById('paramBoutiqueId').value = config.id;
   document.getElementById('paramCleApi').value = config.cleApiSync || '';
   document.getElementById('paramNouveauCode').value = '';
   rendreStatutSynchro(config);
 }
 
-document.getElementById('btnSauverParametresBoutique').addEventListener('click', () => {
+document.getElementById('btnSauverParametresBoutique').addEventListener('click', async () => {
   const nom = document.getElementById('paramNomBoutique').value.trim();
+  const telephone = document.getElementById('paramTelephone').value.trim();
+  const adresse = document.getElementById('paramAdresse').value.trim();
 
   if (!nom) {
     afficherToast('Le nom de la boutique est obligatoire.', 'erreur');
     return;
   }
 
-  const config = definirConfigBoutique({ nom });
+  const config = definirConfigBoutique({ nom, telephone, adresse });
   document.getElementById('nomBoutiqueHeader').textContent = nom;
-  afficherToast('Nom enregistré.', 'succes');
+
+  // Si la synchronisation est déjà active, on répercute aussi sur le serveur
+  // (utile pour que le tableau de bord opérateur ait ces infos à jour).
+  if (config.cleApiSync && navigator.onLine) {
+    try {
+      await fetch(`${CONFIG_SYNC.urlApi}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ boutiqueId: config.id, nom, telephone, adresse })
+      });
+    } catch (err) {
+      console.warn('[Paramètres] Mise à jour serveur différée (hors-ligne ?) :', err.message);
+    }
+  }
+
+  afficherToast('Informations enregistrées.', 'succes');
 });
 
 // ---- Activation en un clic : inscrit la boutique auprès de l'API et récupère sa clé ----
@@ -677,7 +723,7 @@ document.getElementById('btnActiverSync').addEventListener('click', async () => 
     const reponse = await fetch(`${CONFIG_SYNC.urlApi}/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ boutiqueId: config.id, nom: config.nom })
+      body: JSON.stringify({ boutiqueId: config.id, nom: config.nom, telephone: config.telephone, adresse: config.adresse })
     });
 
     if (!reponse.ok) {
@@ -784,6 +830,8 @@ function fermerTousLesEcransPleins() {
 // ---- Configuration initiale de la boutique + premier code d'accès (1ère utilisation) ----
 document.getElementById('btnValiderOnboarding').addEventListener('click', async () => {
   const nom = document.getElementById('onbNomBoutique').value.trim();
+  const telephone = document.getElementById('onbTelephone').value.trim();
+  const adresse = document.getElementById('onbAdresse').value.trim();
   const code = document.getElementById('onbCode').value;
 
   if (!nom) {
@@ -793,7 +841,7 @@ document.getElementById('btnValiderOnboarding').addEventListener('click', async 
 
   try {
     await definirCodeAcces(code);
-    definirConfigBoutique({ nom });
+    definirConfigBoutique({ nom, telephone, adresse });
     afficherToast('Boutique configurée.', 'succes');
     afficherEcranDeverrouillage();
   } catch (err) {
