@@ -78,6 +78,7 @@ td.num { font-family: var(--font-num); }
   <div class="enveloppe">
     <div class="grille-stats" id="grilleStats"></div>
     <p id="erreurAction" style="display:none; background:rgba(192,57,43,0.1); color:var(--rouge); padding:10px 14px; border-radius:8px; font-size:0.85rem; margin-bottom:14px;"></p>
+    <p id="succesAction" style="display:none; background:rgba(47,143,91,0.12); color:var(--vert); padding:10px 14px; border-radius:8px; font-size:0.85rem; margin-bottom:14px; font-weight:600;"></p>
 
     <div id="chargement">Chargement des boutiques…</div>
     <div id="vide" style="display:none;">Aucune boutique enregistrée pour le moment.</div>
@@ -182,11 +183,11 @@ async function chargerTableauDeBord() {
           <td>${formaterDate(b.derniereVente)}</td>
           <td>
             <div class="actions-ligne">
-              <button class="btn btn-principal" data-action="marquer_paye" data-id="${b.id}">Marquer payé (+30j)</button>
+              <button class="btn btn-principal" data-action="marquer_paye" data-id="${b.id}" data-nom="${echapper(b.nom)}">Marquer payé (+30j)</button>
               ${
                 b.abonnementStatut === 'suspendu'
-                  ? `<button class="btn btn-discret" data-action="activer" data-id="${b.id}">Activer</button>`
-                  : `<button class="btn btn-danger" data-action="suspendre" data-id="${b.id}">Suspendre</button>`
+                  ? `<button class="btn btn-discret" data-action="activer" data-id="${b.id}" data-nom="${echapper(b.nom)}">Activer</button>`
+                  : `<button class="btn btn-danger" data-action="suspendre" data-id="${b.id}" data-nom="${echapper(b.nom)}">Suspendre</button>`
               }
               <button class="btn btn-danger" data-action="supprimer" data-id="${b.id}" data-nom="${echapper(b.nom)}" style="background:#7a0d0d;">🗑 Supprimer</button>
             </div>
@@ -213,7 +214,9 @@ async function chargerTableauDeBord() {
     corps.querySelectorAll('[data-action]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const erreurEl = document.getElementById('erreurAction');
+        const succesEl = document.getElementById('succesAction');
         erreurEl.style.display = 'none';
+        succesEl.style.display = 'none';
 
         if (btn.dataset.action === 'supprimer') {
           const confirmation = confirm(
@@ -224,11 +227,24 @@ async function chargerTableauDeBord() {
 
         btn.disabled = true;
         try {
+          let messageSucces;
           if (btn.dataset.action === 'supprimer') {
             await appelApi('DELETE', { boutiqueId: btn.dataset.id });
+            messageSucces = `🗑 "${btn.dataset.nom}" a été supprimée définitivement.`;
           } else {
-            await appelApi('PATCH', { boutiqueId: btn.dataset.id, action: btn.dataset.action });
+            const resultat = await appelApi('PATCH', { boutiqueId: btn.dataset.id, action: btn.dataset.action });
+            const libelles = {
+              marquer_paye: `✅ "${btn.dataset.nom}" marquée payée — nouvelle échéance : ${formaterDate(resultat.nouvelleEcheance)}.`,
+              activer: `✅ "${btn.dataset.nom}" réactivée (échéance inchangée).`,
+              suspendre: `⏸ "${btn.dataset.nom}" suspendue — la synchronisation de cette boutique est désormais bloquée.`
+            };
+            messageSucces = libelles[btn.dataset.action] || `✅ Action "${btn.dataset.action}" appliquée sur "${btn.dataset.nom}".`;
           }
+
+          succesEl.textContent = messageSucces;
+          succesEl.style.display = 'block';
+          clearTimeout(succesEl._timer);
+          succesEl._timer = setTimeout(() => (succesEl.style.display = 'none'), 6000);
           chargerTableauDeBord();
         } catch (err) {
           console.error('[Admin] Échec action', btn.dataset.action, ':', err);
