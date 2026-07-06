@@ -28,7 +28,7 @@ function obtenirConfigBoutique() {
 
 /**
  * Enregistre la configuration de la boutique pour cet appareil.
- * @param {Object} donnees - { nom, cleApiSync? }
+ * @param {Object} donnees - { nom, telephone?, adresse?, cleApiSync? }
  * @returns {Object} la configuration complète créée (avec id généré)
  */
 function definirConfigBoutique(donnees) {
@@ -36,6 +36,8 @@ function definirConfigBoutique(donnees) {
   const config = {
     id: existante ? existante.id : genererUUID(),
     nom: donnees.nom,
+    telephone: donnees.telephone !== undefined ? donnees.telephone : (existante ? existante.telephone : ''),
+    adresse: donnees.adresse !== undefined ? donnees.adresse : (existante ? existante.adresse : ''),
     cleApiSync: donnees.cleApiSync || (existante ? existante.cleApiSync : ''),
     dateConfiguration: existante ? existante.dateConfiguration : new Date().toISOString()
   };
