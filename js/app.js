@@ -283,6 +283,36 @@ document.getElementById('btnEncaisser').addEventListener('click', async () => {
 // ---- Impression du ticket (facturation) ----
 let derniereVenteEncaissee = null;
 
+/**
+ * Récupère les infos boutique (nom/téléphone/adresse) les plus à jour
+ * depuis le serveur si possible, et les fusionne dans la config locale.
+ * Best-effort : en cas d'échec (hors-ligne, sync non activée), on
+ * continue simplement avec les infos déjà connues localement — la
+ * facture doit toujours pouvoir être générée hors-ligne.
+ */
+async function rafraichirInfosBoutiqueDepuisServeur() {
+  const config = obtenirConfigBoutique();
+  if (!config || !config.cleApiSync || !navigator.onLine) return config;
+
+  try {
+    const reponse = await fetch(`${CONFIG_SYNC.urlApi}/statut`, {
+      headers: { 'X-API-Key': config.cleApiSync }
+    });
+    if (!reponse.ok) return config;
+
+    const statut = await reponse.json();
+    return definirConfigBoutique({
+      nom: statut.nom || config.nom,
+      telephone: statut.telephone || config.telephone,
+      adresse: statut.adresse || config.adresse,
+      cleApiSync: config.cleApiSync
+    });
+  } catch (err) {
+    console.warn('[Facture] Rafraîchissement des infos boutique impossible (hors-ligne ?) :', err.message);
+    return config;
+  }
+}
+
 function construireHtmlTicketImprimable(vente) {
   const config = obtenirConfigBoutique() || {};
   const libellesTarif = { detail: 'Détail', demiGros: 'Demi-gros', gros: 'Gros' };
@@ -345,11 +375,12 @@ function construireHtmlTicketImprimable(vente) {
     </div>`;
 }
 
-document.getElementById('btnImprimerDernier').addEventListener('click', () => {
+document.getElementById('btnImprimerDernier').addEventListener('click', async () => {
   if (!derniereVenteEncaissee) {
     afficherToast('Aucun ticket à imprimer pour le moment.', 'erreur');
     return;
   }
+  await rafraichirInfosBoutiqueDepuisServeur();
   document.getElementById('zoneImpressionTicket').innerHTML = construireHtmlTicketImprimable(derniereVenteEncaissee);
   window.print();
 });
@@ -359,6 +390,17 @@ document.getElementById('btnImprimerDernier').addEventListener('click', () => {
  * la boîte de dialogue d'impression du navigateur). Fonctionne 100%
  * hors-ligne une fois jsPDF mis en cache par le Service Worker.
  */
+/**
+ * Formate un montant pour affichage dans le PDF. Les polices standard
+ * (Helvetica) de jsPDF ne supportent PAS le caractère "espace insécable
+ * fine" (U+202F) que toLocaleString('fr-FR') utilise comme séparateur de
+ * milliers — ça produit des caractères corrompus (ex: "&9&0" au lieu de
+ * "9 000"). On remplace donc systématiquement par un espace normal.
+ */
+function formaterMontantPdf(nombre) {
+  return formaterMontant(nombre).replace(/[\u202F\u00A0]/g, ' ');
+}
+
 function genererPdfFacture(vente) {
   const { jsPDF } = window.jspdf;
   const config = obtenirConfigBoutique() || {};
@@ -400,8 +442,8 @@ function genererPdfFacture(vente) {
     a.nom,
     libellesTarif[a.tarif] || 'Détail',
     String(a.quantite),
-    formaterMontant(a.prixUnitaire),
-    formaterMontant(a.sousTotal)
+    formaterMontantPdf(a.prixUnitaire),
+    formaterMontantPdf(a.sousTotal)
   ]);
 
   doc.autoTable({
@@ -431,7 +473,7 @@ function genererPdfFacture(vente) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.text('TOTAL', largeurPage - margeGauche - 60, yApresTableau + 12);
-  doc.text(`${formaterMontant(vente.montantTotal)} FCFA`, largeurPage - margeGauche, yApresTableau + 12, { align: 'right' });
+  doc.text(`${formaterMontantPdf(vente.montantTotal)} FCFA`, largeurPage - margeGauche, yApresTableau + 12, { align: 'right' });
 
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(10);
@@ -441,12 +483,13 @@ function genererPdfFacture(vente) {
   doc.save(`facture-${vente.id.slice(0, 8)}.pdf`);
 }
 
-document.getElementById('btnTelechargerPdf').addEventListener('click', () => {
+document.getElementById('btnTelechargerPdf').addEventListener('click', async () => {
   if (!derniereVenteEncaissee) {
     afficherToast('Aucune facture à télécharger pour le moment.', 'erreur');
     return;
   }
   try {
+    await rafraichirInfosBoutiqueDepuisServeur();
     genererPdfFacture(derniereVenteEncaissee);
     afficherToast('Facture PDF téléchargée.', 'succes');
   } catch (err) {
