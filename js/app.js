@@ -268,6 +268,7 @@ document.getElementById('btnEncaisser').addEventListener('click', async () => {
     afficherToast(`Vente encaissée : ${formaterMontant(vente.montantTotal)} FCFA (${modePaiementSelectionne})`, 'succes');
     derniereVenteEncaissee = vente;
     document.getElementById('btnImprimerDernier').style.display = 'block';
+    document.getElementById('btnTelechargerPdf').style.display = 'block';
     panierCourant = [];
     rendreTicket();
     rendreCatalogueCaisse();
@@ -351,6 +352,107 @@ document.getElementById('btnImprimerDernier').addEventListener('click', () => {
   }
   document.getElementById('zoneImpressionTicket').innerHTML = construireHtmlTicketImprimable(derniereVenteEncaissee);
   window.print();
+});
+
+/**
+ * Génère la facture au format PDF (téléchargement direct, sans passer par
+ * la boîte de dialogue d'impression du navigateur). Fonctionne 100%
+ * hors-ligne une fois jsPDF mis en cache par le Service Worker.
+ */
+function genererPdfFacture(vente) {
+  const { jsPDF } = window.jspdf;
+  const config = obtenirConfigBoutique() || {};
+  const libellesTarif = { detail: 'Détail', demiGros: 'Demi-gros', gros: 'Gros' };
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+  const dateFacture = new Date(vente.dateVente);
+  const margeGauche = 16;
+  const largeurPage = doc.internal.pageSize.getWidth();
+
+  // ---- En-tête : coordonnées boutique (gauche) + FACTURE/numéro/date (droite) ----
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.text(config.nom || 'Ma boutique', margeGauche, 22);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  let yCoord = 29;
+  if (config.adresse) { doc.text(config.adresse, margeGauche, yCoord); yCoord += 5; }
+  if (config.telephone) { doc.text('Tél : ' + config.telephone, margeGauche, yCoord); yCoord += 5; }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text('FACTURE', largeurPage - margeGauche, 22, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.text(`N° ${vente.id.slice(0, 8).toUpperCase()}`, largeurPage - margeGauche, 29, { align: 'right' });
+  doc.text(
+    `${dateFacture.toLocaleDateString('fr-FR')} à ${dateFacture.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
+    largeurPage - margeGauche, 34, { align: 'right' }
+  );
+
+  doc.setDrawColor(0);
+  doc.setLineWidth(0.6);
+  doc.line(margeGauche, 40, largeurPage - margeGauche, 40);
+
+  // ---- Tableau des articles ----
+  const lignesTableau = vente.articles.map((a) => [
+    a.nom,
+    libellesTarif[a.tarif] || 'Détail',
+    String(a.quantite),
+    formaterMontant(a.prixUnitaire),
+    formaterMontant(a.sousTotal)
+  ]);
+
+  doc.autoTable({
+    startY: 46,
+    margin: { left: margeGauche, right: margeGauche },
+    head: [['Désignation', 'Tarif', 'Qté', 'Prix unitaire', 'Montant']],
+    body: lignesTableau,
+    styles: { fontSize: 10, cellPadding: 2.5 },
+    headStyles: { fillColor: [22, 33, 58], textColor: 255, fontStyle: 'bold' },
+    columnStyles: {
+      1: { halign: 'center' },
+      2: { halign: 'center' },
+      3: { halign: 'right' },
+      4: { halign: 'right' }
+    }
+  });
+
+  // ---- Total + mode de paiement ----
+  const yApresTableau = doc.lastAutoTable.finalY + 10;
+  doc.setFontSize(10);
+  doc.text('Mode de paiement', largeurPage - margeGauche - 60, yApresTableau);
+  doc.text(vente.modePaiement, largeurPage - margeGauche, yApresTableau, { align: 'right' });
+
+  doc.setLineWidth(0.6);
+  doc.line(largeurPage - margeGauche - 60, yApresTableau + 4, largeurPage - margeGauche, yApresTableau + 4);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.text('TOTAL', largeurPage - margeGauche - 60, yApresTableau + 12);
+  doc.text(`${formaterMontant(vente.montantTotal)} FCFA`, largeurPage - margeGauche, yApresTableau + 12, { align: 'right' });
+
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(10);
+  doc.setTextColor(90);
+  doc.text('Merci de votre confiance !', largeurPage / 2, yApresTableau + 35, { align: 'center' });
+
+  doc.save(`facture-${vente.id.slice(0, 8)}.pdf`);
+}
+
+document.getElementById('btnTelechargerPdf').addEventListener('click', () => {
+  if (!derniereVenteEncaissee) {
+    afficherToast('Aucune facture à télécharger pour le moment.', 'erreur');
+    return;
+  }
+  try {
+    genererPdfFacture(derniereVenteEncaissee);
+    afficherToast('Facture PDF téléchargée.', 'succes');
+  } catch (err) {
+    console.error('[PDF] Erreur de génération :', err);
+    afficherToast('Erreur lors de la génération du PDF.', 'erreur');
+  }
 });
 
 // =================================================================
