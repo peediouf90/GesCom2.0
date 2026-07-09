@@ -14,7 +14,7 @@ const DESACTIVER_AUTH_BOUTIQUE = process.env.DESACTIVER_AUTH_BOUTIQUE === 'true'
  */
 async function authentifierBoutique(req) {
   if (DESACTIVER_AUTH_BOUTIQUE) {
-    return { boutiqueId: 'dev-sans-auth', nom: 'Développement (sans authentification)', abonnementStatut: 'actif', abonnementExpireLe: null };
+    return { boutiqueId: 'dev-sans-auth', nom: 'Développement (sans authentification)', telephone: '', adresse: '', abonnementStatut: 'actif', abonnementExpireLe: null };
   }
 
   const cleFournie = req.headers['x-api-key'];
@@ -23,7 +23,7 @@ async function authentifierBoutique(req) {
   const supabase = obtenirClientSupabase();
   const { data, error } = await supabase
     .from('boutiques')
-    .select('id, nom, abonnement_statut, abonnement_expire_le')
+    .select('id, nom, telephone, adresse, abonnement_statut, abonnement_expire_le')
     .eq('api_key', cleFournie)
     .maybeSingle();
 
@@ -32,6 +32,8 @@ async function authentifierBoutique(req) {
   return {
     boutiqueId: data.id,
     nom: data.nom,
+    telephone: data.telephone || '',
+    adresse: data.adresse || '',
     abonnementStatut: data.abonnement_statut,
     abonnementExpireLe: data.abonnement_expire_le
   };
