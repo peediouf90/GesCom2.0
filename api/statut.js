@@ -28,6 +28,8 @@ module.exports = async function handler(req, res) {
   return res.status(200).json({
     boutiqueId: boutique.boutiqueId,
     nom: boutique.nom,
+    telephone: boutique.telephone,
+    adresse: boutique.adresse,
     abonnementStatut: boutique.abonnementStatut,
     abonnementExpireLe: boutique.abonnementExpireLe,
     joursRestants
