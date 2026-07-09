@@ -16,6 +16,9 @@
 
 <!-- Dexie.js : wrapper IndexedDB robuste (mis en cache par le service worker) -->
 <script src="https://unpkg.com/dexie@3/dist/dexie.js"></script>
+<!-- jsPDF : génération de factures PDF téléchargeables, 100% côté client (fonctionne hors-ligne une fois mis en cache) -->
+<script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://unpkg.com/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.js"></script>
 </head>
 <body>
 
@@ -133,6 +136,7 @@
         <div class="encaisser-zone">
           <button id="btnEncaisser" class="btn btn-principal btn-pleine-largeur">Encaisser la vente</button>
           <button id="btnImprimerDernier" class="btn btn-discret btn-pleine-largeur" style="margin-top:8px; display:none;">🖨️ Imprimer le dernier ticket</button>
+          <button id="btnTelechargerPdf" class="btn btn-discret btn-pleine-largeur" style="margin-top:8px; display:none;">📄 Télécharger en PDF</button>
         </div>
         <div class="ticket-dents"></div>
       </div>
