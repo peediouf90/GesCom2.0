@@ -14,7 +14,7 @@
  * forcer la mise à jour du cache chez les utilisateurs.
  */
 
-const CACHE_VERSION = 'gescom-v12';
+const CACHE_VERSION = 'gescom-v13';
 const CACHE_APP_SHELL = `${CACHE_VERSION}-app-shell`;
 
 // Liste exhaustive des fichiers nécessaires au fonctionnement hors-ligne complet
@@ -39,7 +39,9 @@ const FICHIERS_A_PRECACHER = [
   './icons/icon-maskable-512.png',
   // Dépendance externe (Dexie.js) mise en cache pour un offline garanti,
   // même si le CDN est injoignable après le premier chargement.
-  'https://unpkg.com/dexie@3/dist/dexie.js'
+  'https://unpkg.com/dexie@3/dist/dexie.js',
+  'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js',
+  'https://unpkg.com/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.js'
 ];
 
 // ---- Installation : pré-mise en cache de l'app shell ----
